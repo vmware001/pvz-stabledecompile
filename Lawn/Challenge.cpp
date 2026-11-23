@@ -31,6 +31,7 @@
 #include "../SexyAppFramework/WidgetManager.h"
 #include "Widget/AchievementsScreen.h"
 #include <random>
+#include <vector>
 
 #include "../Sexy.TodLib/Attachment.h"
 #include "../Sexy.TodLib/EffectSystem.h"
@@ -2594,7 +2595,7 @@ void Challenge::DrawBackdrop(Graphics* g)
 		g->DrawImageF(Sexy::IMAGE_WALLNUT_BOWLINGSTRIPE, 352, 73);
 	}
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_6 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_7 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_8 ||
-		mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS)
+		mApp->IsEndlessIZombie(mApp->mGameMode))
 	{
 		g->DrawImageF(Sexy::IMAGE_WALLNUT_BOWLINGSTRIPE, 432, 73);
 	}
@@ -2659,7 +2660,7 @@ PlantingReason Challenge::CanPlantAt(int theGridX, int theGridY, SeedType theSee
 			aLimit = 4;
 		}
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_6 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_7 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_8 ||
-			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS)
+			mApp->IsEndlessIZombie(mApp->mGameMode))
 		{
 			aLimit = 5;
 		}
@@ -4620,7 +4621,7 @@ bool Challenge::PuzzleIsAwardStage()
 	if (mApp->mGameMode == GameMode::GAMEMODE_SCARY_POTTER_ENDLESS && mSurvivalStage < 2)
 		return false;
 
-	int aGoal = mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ? 3 : mApp->mGameMode == GameMode::GAMEMODE_SCARY_POTTER_ENDLESS ? 10 : 1;
+	int aGoal = mApp->IsEndlessIZombie(mApp->mGameMode) ? 3 : mApp->mGameMode == GameMode::GAMEMODE_SCARY_POTTER_ENDLESS ? 10 : 1;
 
 	return mSurvivalStage % aGoal == 0 || mApp->mGameMode == GameMode::GAMEMODE_SCARY_POTTER_ENDLESS && mSurvivalStage == 3;
 }
@@ -4789,6 +4790,11 @@ void Challenge::PuzzleNextStageClear()
 //0x42A040
 ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 {
+	if (theSeedType >= SEED_PEASHOOTER && theSeedType <= SEED_CABBAGEPULT)
+	{
+		return (ZombieType)theSeedType;
+	}
+
 	switch (theSeedType)
 	{
 	case SEED_ZOMBIE_NORMAL:		return ZOMBIE_NORMAL;
@@ -4838,7 +4844,18 @@ void Challenge::IZombieMouseDownWithZombie(int theX, int theY, int theClickCount
 		int aGridY = mBoard->PlantingPixelToGridY(theX, theY, aSeedType);
 		if (aGridX != -1 && aGridY != -1 && theClickCount)
 		{
-			if (CanPlantAt(aGridX, aGridY, aSeedType) == PLANTING_OK)
+			PlantingReason aReason = CanPlantAt(aGridX, aGridY, aSeedType);
+			if (IsIZombiePlantSeed(aSeedType))
+			{
+				ZombieType aZombieType = IZombieSeedTypeToZombieType(aSeedType);
+				if (aZombieType == ZOMBIE_BUNGEE)
+					aReason = aGridX < 5 && !mBoard->BungeeIsTargetingCell(aGridX, aGridY) ? PLANTING_OK : PLANTING_NOT_HERE;
+				else
+					aReason = aGridX >= 5 ? PLANTING_OK : PLANTING_NOT_HERE;
+			}
+			if (gPvzToolkitBridge.flags & TK_CHEAT_PLANT_ANYWHERE)
+				aReason = PLANTING_OK;
+			if (aReason == PLANTING_OK)
 			{
 				if (mApp->mEasyPlantingCheat || mBoard->TakeSunMoney(mBoard->GetCurrentPlantCost(aSeedType, SEED_NONE)))
 				{
@@ -4856,7 +4873,7 @@ void Challenge::IZombieMouseDownWithZombie(int theX, int theY, int theClickCount
 			else
 			{
 				mBoard->ClearAdvice(ADVICE_NONE);
-				if (aSeedType == SEED_ZOMBIE_BUNGEE)
+				if (IZombieSeedTypeToZombieType(aSeedType) == ZOMBIE_BUNGEE)
 				{
 					mBoard->DisplayAdvice(_S("[ADVICE_I_ZOMBIE_LEFT_OF_LINE]"), MESSAGE_STYLE_HINT_LONG, ADVICE_I_ZOMBIE_LEFT_OF_LINE);
 				}
@@ -4932,8 +4949,7 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 		aMaxGridY = theGridY;  // 可种植范围从 theGridY 行至 theGridY 行，表示限定种植的行只能为 theGridY
 	}
 
-	int aGridArrayCount = 0;
-	TodWeightedGridArray aGridArray[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	std::vector<TodWeightedGridArray> aGridArray;
 	// 将从 theGridY 行至 aMaxGridY 行的选择数据写入格子数组中
 	for (int aRow = aMinGridY; aRow <= aMaxGridY; aRow++)
 	{
@@ -4946,24 +4962,213 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 				// 坚果和火炬树桩只会出现在靠右侧的 3 列
 				if ((theSeedType != SEED_WALLNUT && theSeedType != SEED_TORCHWOOD) || aColumns - aCol <= 3)
 				{
-					aGridArray[aGridArrayCount].mX = aCol;
-					aGridArray[aGridArrayCount].mY = aRow;
-					aGridArray[aGridArrayCount].mWeight = 1;
-					aGridArrayCount++;
+					aGridArray.push_back({ aCol, aRow, 1 });
 				}
 			}
 		}
 	}
 
-	if (theCount > aGridArrayCount)
-		theCount = aGridArrayCount;
+	if (theCount > (int)aGridArray.size())
+		theCount = (int)aGridArray.size();
 
 	// 依次选择 theCount 个格子并在这些格子中放置植物
 	for (int i = 0; i < theCount; i++)
 	{
-		TodWeightedGridArray* aGrid = TodPickFromWeightedGridArray(aGridArray, aGridArrayCount);
-		IZombiePlacePlantInSquare(theSeedType, aGrid->mX, aGrid->mY);
-		aGrid->mWeight = 0;
+		int aPickIndex = Rand((int)aGridArray.size());
+		TodWeightedGridArray aPicked = aGridArray[aPickIndex];
+		IZombiePlacePlantInSquare(theSeedType, aPicked.mX, aPicked.mY);
+		aGridArray.erase(aGridArray.begin() + aPickIndex);
+	}
+}
+
+int gIZombieNextFormation = -1;
+
+static bool IZombieIsOutputPlant(SeedType theSeedType)
+{
+	switch (theSeedType)
+	{
+	case SEED_PEASHOOTER:
+	case SEED_SNOWPEA:
+	case SEED_CHOMPER:
+	case SEED_REPEATER:
+	case SEED_PUFFSHROOM:
+	case SEED_FUMESHROOM:
+	case SEED_SCAREDYSHROOM:
+	case SEED_POTATOMINE:
+	case SEED_THREEPEATER:
+	case SEED_TANGLEKELP:
+	case SEED_CACTUS:
+	case SEED_SPLITPEA:
+	case SEED_STARFRUIT:
+	case SEED_CABBAGEPULT:
+	case SEED_KERNELPULT:
+	case SEED_MELONPULT:
+	case SEED_GATLINGPEA:
+	case SEED_GLOOMSHROOM:
+	case SEED_CATTAIL:
+	case SEED_WINTERMELON:
+		return true;
+	default:
+		return false;
+	}
+}
+
+void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormationType)
+{
+	Plant* aPlants[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	SeedType aOldTypes[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	SeedType aNewTypes[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	int aCols[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	int aRows[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+	int aPlantCount = 0;
+	bool aGloomshroomReplaced = false;
+	Plant* aPlant = nullptr;
+	while (mBoard->IteratePlants(aPlant))
+	{
+		SeedType aOldType = aPlant->mSeedType;
+		SeedType aNewType = aOldType;
+		if (!theSpecialFormation)
+		{
+			if (aOldType == SEED_PEASHOOTER)
+			{
+				int aHit = Rand(100);
+				if (aHit < 30)
+					aNewType = SEED_CABBAGEPULT;
+				else if (aHit < 60)
+					aNewType = SEED_CACTUS;
+			}
+			else if (aOldType == SEED_FUMESHROOM && !aGloomshroomReplaced && Rand(100) < 50)
+			{
+				aNewType = SEED_GLOOMSHROOM;
+				aGloomshroomReplaced = true;
+			}
+			else if (aOldType == SEED_MAGNETSHROOM && Rand(100) < 50)
+				aNewType = SEED_HYPNOSHROOM;
+
+			if (mSurvivalStage >= 10)
+			{
+				if (aOldType == SEED_REPEATER && Rand(100) < 20)
+					aNewType = SEED_GATLINGPEA;
+				else if (aOldType == SEED_KERNELPULT && Rand(100) < 20)
+					aNewType = SEED_MELONPULT;
+			}
+		}
+		else if (theFormationType == 0)
+		{
+			if (aOldType == SEED_REPEATER && Rand(100) < 20)
+				aNewType = SEED_GATLINGPEA;
+			else if (aOldType == SEED_PEASHOOTER && Rand(100) < 50)
+				aNewType = SEED_CACTUS;
+		}
+		else if (theFormationType == 3 && aOldType == SEED_FUMESHROOM && Rand(100) < 20)
+			aNewType = SEED_GLOOMSHROOM;
+
+		if (!theSpecialFormation && theFormationType == 5 && aOldType == SEED_CHOMPER && Rand(100) < 20)
+			aNewType = SEED_HYPNOSHROOM;
+
+		aPlants[aPlantCount] = aPlant;
+		aOldTypes[aPlantCount] = aOldType;
+		aNewTypes[aPlantCount] = aNewType;
+		aCols[aPlantCount] = aPlant->mPlantCol;
+		aRows[aPlantCount] = aPlant->mRow;
+		aPlantCount++;
+	}
+	for (int i = 0; i < aPlantCount; i++)
+	{
+		if (aNewTypes[i] == aPlants[i]->mSeedType)
+			continue;
+		int aCol = aCols[i];
+		int aRow = aRows[i];
+		aPlants[i]->RemoveEffects();
+		aPlants[i]->PlantInitialize(aCol, aRow, aNewTypes[i], SEED_NONE);
+		IZombieSetupPlant(aPlants[i]);
+	}
+
+	for (int i = 0; i < aPlantCount; i++)
+	{
+		if (aOldTypes[i] != SEED_TORCHWOOD)
+			continue;
+		Plant* aTorch = aPlants[i];
+		bool aValidTorch = false;
+		Plant* aOtherPlant = nullptr;
+		while (mBoard->IteratePlants(aOtherPlant))
+		{
+			if (aOtherPlant->mRow == aTorch->mRow && aOtherPlant->mPlantCol < aTorch->mPlantCol &&
+				(aOtherPlant->mSeedType == SEED_PEASHOOTER || aOtherPlant->mSeedType == SEED_REPEATER || aOtherPlant->mSeedType == SEED_GATLINGPEA))
+			{
+				aValidTorch = true;
+				break;
+			}
+		}
+		if (aValidTorch)
+			continue;
+
+		SeedType aCandidates[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
+		int aCandidateCount = 0;
+		for (int j = 0; j < aPlantCount; j++)
+		{
+			if (!IZombieIsOutputPlant(aOldTypes[j]))
+				continue;
+			bool aAlreadyListed = false;
+			for (int k = 0; k < aCandidateCount; k++)
+				aAlreadyListed |= aCandidates[k] == aOldTypes[j];
+			if (!aAlreadyListed)
+				aCandidates[aCandidateCount++] = aOldTypes[j];
+		}
+		if (aCandidateCount > 0)
+		{
+			SeedType aNewType = aCandidates[Rand(aCandidateCount)];
+			aTorch->RemoveEffects();
+			aTorch->PlantInitialize(aTorch->mPlantCol, aTorch->mRow, aNewType, SEED_NONE);
+			IZombieSetupPlant(aTorch);
+		}
+	}
+
+	if (!theSpecialFormation && mSurvivalStage >= 10)
+	{
+		for (int i = 0; i < aPlantCount; i++)
+		{
+			Plant* aBasePlant = mBoard->GetTopPlantAt(aCols[i], aRows[i], PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
+			if (aBasePlant != nullptr && IZombieIsOutputPlant(aBasePlant->mSeedType) && Rand(100) < 5)
+				IZombieSetupPlant(mBoard->NewPlant(aCols[i], aRows[i], SEED_PUMPKINSHELL));
+		}
+	}
+
+	bool aOccupied[MAX_GRID_SIZE_X][MAX_GRID_SIZE_Y] = {};
+	aPlant = nullptr;
+	while (mBoard->IteratePlants(aPlant))
+	{
+		if (aPlant->mSeedType == SEED_PUMPKINSHELL || aPlant->mPlantCol < 0 || aPlant->mPlantCol >= MAX_GRID_SIZE_X || aPlant->mRow < 0 || aPlant->mRow >= MAX_GRID_SIZE_Y)
+			continue;
+		if (aOccupied[aPlant->mPlantCol][aPlant->mRow])
+		{
+			bool aMoved = false;
+			for (int aRow = 0; aRow < 5 && !aMoved; aRow++)
+			{
+				for (int aCol = 0; aCol < 5; aCol++)
+				{
+					if (aOccupied[aCol][aRow] || mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
+						continue;
+					aPlant->mPlantCol = aCol;
+					aPlant->mRow = aRow;
+					aPlant->mStartRow = aRow;
+					aPlant->mX = mBoard->GridToPixelX(aCol, aRow);
+					aPlant->mY = mBoard->GridToPixelY(aCol, aRow);
+					aPlant->mRenderOrder = aPlant->CalcRenderOrder();
+					aPlant->UpdateReanim();
+					aOccupied[aCol][aRow] = true;
+					aMoved = true;
+					break;
+				}
+			}
+			if (!aMoved)
+			{
+				aPlant->Die();
+				mBoard->mPlants.DataArrayFree(aPlant);
+			}
+		}
+		else
+			aOccupied[aPlant->mPlantCol][aPlant->mRow] = true;
 	}
 }
 
@@ -5093,12 +5298,16 @@ void Challenge::IZombieInitLevel()
 		IZombiePlacePlants(SEED_SPLITPEA, 1, 4);
 		IZombiePlacePlants(SEED_MAGNETSHROOM, 1, 4);
 		break;
+	case GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS:
+	case GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS:
 	{
 		if (mSurvivalStage == 10) // @Patoke: add achievement
 			ReportAchievement::GiveAchievement(mApp, AchievementId::BetterOffDead, true);
 
-		int aFormationHit = RandRangeInt(0, 4);
+		int aForcedFormation = gIZombieNextFormation;
+		gIZombieNextFormation = -1;
+		int aFormationHit = aForcedFormation >= 0 ? 0 : RandRangeInt(0, 4);
 
 		int aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 4), ClampInt(3 + mSurvivalStage / 2, 2, 6));
 		if (mSurvivalStage == 0)
@@ -5113,13 +5322,18 @@ void Challenge::IZombieInitLevel()
 		{
 			aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 5), ClampInt(3 + mSurvivalStage / 2, 2, 7));
 		}
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS)
+			aPuffshroomCount = min(aPuffshroomCount, 5);
 		int aSunflowerCount = 8 - aPuffshroomCount;
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
 
-		if (aFormationHit == 0 && mSurvivalStage >= 1)
+		bool aSpecialFormation = aForcedFormation >= 0 ? aForcedFormation <= 4 : aFormationHit == 0 && mSurvivalStage >= 1;
+		int aFormationType = -1;
+		if (aSpecialFormation)
 		{
-			switch (RandRangeInt(0, 4))
+			aFormationType = aForcedFormation >= 0 ? aForcedFormation : RandRangeInt(0, 4);
+			switch (aFormationType)
 			{
 			case 0:  // 输出阵
 				IZombiePlacePlants(SEED_SNOWPEA, 9, -1);
@@ -5145,7 +5359,8 @@ void Challenge::IZombieInitLevel()
 		}
 		else
 		{
-			switch (RandRangeInt(0, 5))
+			aFormationType = aForcedFormation >= 5 ? (aForcedFormation == 5 ? 0 : aForcedFormation == 6 ? 3 : 5) : RandRangeInt(0, 5);
+			switch (aFormationType)
 			{
 			case 0:
 			case 1:
@@ -5187,6 +5402,8 @@ void Challenge::IZombieInitLevel()
 				break;
 			}
 		}
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED)
+			IZombieStrengthenPlants(aSpecialFormation, aFormationType);
 		break;
 	}
 	default:
@@ -5265,6 +5482,14 @@ void Challenge::IZombieUpdate()
 
 		mBoard->ZombiesWon(nullptr);
 	}
+}
+
+// 僵尸公敌无尽中, 植物卡按编号对应的僵尸放出
+bool Challenge::IsIZombiePlantSeed(SeedType theSeedType)
+{
+	return gLawnApp != nullptr &&
+		gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode) &&
+		theSeedType >= SEED_PEASHOOTER && theSeedType <= SEED_CABBAGEPULT;
 }
 
 //0x42B530

@@ -180,9 +180,11 @@ public:
     void                    ScaryPotterMalletPot(GridItem* theScaryPot);
     static ZombieType       IZombieSeedTypeToZombieType(SeedType theSeedType);
     static /*inline*/ bool  IsZombieSeedType(SeedType theSeedType);
+    static /*inline*/ bool  IsIZombiePlantSeed(SeedType theSeedType);
     void                    IZombieMouseDownWithZombie(int theX, int theY, int theClickCount);
     void                    IZombieStart();
     void                    IZombiePlacePlants(SeedType theSeedType, int theCount, int theGridY = -1);
+    void                    IZombieStrengthenPlants(bool theSpecialFormation, int theFormationType);
     void                    IZombieUpdate();
     void                    IZombieDrawPlant(Graphics* g, Plant* thePlant);
     void                    IZombieSetPlantFilterEffect(Plant* thePlant, FilterEffect theFilterEffect);
@@ -263,6 +265,7 @@ public:
     ZombieType                      mZombieType;
     int                             mAllowedOnLevel[50];
 };
+extern int gIZombieNextFormation;
 extern int gZombieWaves[NUM_LEVELS]; //0x6A34E8
 extern ZombieAllowedLevels gZombieAllowedLevels[NUM_ZOMBIE_TYPES];  //0x6A35B0
 

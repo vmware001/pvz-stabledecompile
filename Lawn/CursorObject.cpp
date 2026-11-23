@@ -1,6 +1,7 @@
 #include "Board.h"
 #include "Cutscene.h"
 #include "ZenGarden.h"
+#include "SeedPacket.h"
 #include "../LawnApp.h"
 #include "CursorObject.h"
 #include "../Resources.h"
@@ -213,21 +214,22 @@ void CursorObject::Draw(Graphics* g)
         {
             aOffsetX -= 55.0f;
             aOffsetY -= 70.0f;
-            if (mType == SeedType::SEED_ZOMBIE_BUNGEE)
+            SeedType aLayoutType = SeedPacketGetLayoutSeedType(mType);
+            if (aLayoutType == SeedType::SEED_ZOMBIE_BUNGEE)
             {
                 aOffsetY -= 600;
             }
-            else if (mType ==  SeedType::SEED_ZOMBONI)
+            else if (aLayoutType ==  SeedType::SEED_ZOMBONI)
             {
                 aOffsetX += 10;
                 aOffsetY -= 25;
             }
-            else if (mType == SeedType::SEED_ZOMBIE_POLEVAULTER)
+            else if (aLayoutType == SeedType::SEED_ZOMBIE_POLEVAULTER)
             {
                 aOffsetX -= 50;
             }
         }
-        Plant::DrawSeedType(g, mType, mImitaterType, DrawVariation::VARIATION_NORMAL, aOffsetX, aOffsetY);
+        Plant::DrawSeedType(g, mType, mImitaterType, DrawVariation::VARIATION_NORMAL, aOffsetX, aOffsetY, 0U, true);
         break;
     }
     
@@ -347,19 +349,20 @@ void CursorPreview::Draw(Graphics* g)
         if (mApp->IsIZombieLevel())
         {
             float aHeight = PlantDrawHeightOffset(mBoard, nullptr, aSeedType, mGridX, mGridY);
-            if (aSeedType == SeedType::SEED_ZOMBIE_GARGANTUAR)
+            SeedType aLayoutType = SeedPacketGetLayoutSeedType(aSeedType);
+            if (aLayoutType == SeedType::SEED_ZOMBIE_GARGANTUAR)
             {
                 aHeight -= 30.0f;
             }
-            else if (aSeedType == SeedType::SEED_ZOMBIE_BALLOON)
+            else if (aLayoutType == SeedType::SEED_ZOMBIE_BALLOON)
             {
                 aHeight -= 30.0f;
             }
-            else if (aSeedType == SeedType::SEED_ZOMBIE_POGO)
+            else if (aLayoutType == SeedType::SEED_ZOMBIE_POGO)
             {
                 aHeight -= 16.0f;
             }
-            else if (aSeedType == SeedType::SEED_ZOMBIE_BUNGEE)
+            else if (aLayoutType == SeedType::SEED_ZOMBIE_BUNGEE)
             {
                 aHeight -= 600;
             }
@@ -367,12 +370,12 @@ void CursorPreview::Draw(Graphics* g)
             aOffsetY = aHeight - 78.0f;
             aOffsetX = -49.0f;
 
-            if (aSeedType == SeedType::SEED_ZOMBONI)
+            if (aLayoutType == SeedType::SEED_ZOMBONI)
             {
                 aOffsetX += 10;
                 aOffsetY -= 25;
             }
-            else if (aSeedType == SeedType::SEED_ZOMBIE_POLEVAULTER)
+            else if (aLayoutType == SeedType::SEED_ZOMBIE_POLEVAULTER)
             {
                 aOffsetX -= 50;
             }
@@ -390,7 +393,7 @@ void CursorPreview::Draw(Graphics* g)
 #endif
         }
 
-        Plant::DrawSeedType(g, mBoard->mCursorObject->mType, mBoard->mCursorObject->mImitaterType, DrawVariation::VARIATION_NORMAL, aOffsetX, aOffsetY);
+        Plant::DrawSeedType(g, mBoard->mCursorObject->mType, mBoard->mCursorObject->mImitaterType, DrawVariation::VARIATION_NORMAL, aOffsetX, aOffsetY, 0U, true);
     }
 
     if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)

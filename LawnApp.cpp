@@ -67,6 +67,196 @@ bool gIsPartnerBuild = false;
 bool gSlowMo = false;  //0x6A9EAA
 bool gFastMo = false;  //0x6A9EAB
 LawnApp* gLawnApp = nullptr;  //0x6A9EC0
+
+// ---- PvZ Toolkit 桥接表 ----
+// 修改器通过扫描 "PTKBRIDGE1" 找到这张表, 直接拿到各字段地址,
+// 不再依赖版本相关的硬编码偏移.
+PvzToolkitBridgeV1 gPvzToolkitBridge = {
+	"PTKBRIDGE1", 1, sizeof(PvzToolkitBridgeV1),
+	nullptr, nullptr, nullptr, 0,
+	nullptr, nullptr, nullptr, nullptr, nullptr,
+	{ nullptr }, { nullptr }, nullptr, nullptr,
+	nullptr, 0, TK_COMMAND_NONE,
+	0, 0,
+	{ 0 }, { 0 }, { 0 }, { 0 }, { 0 },
+	nullptr, nullptr, nullptr, nullptr, nullptr,
+	{ 0 }, nullptr, 0, nullptr
+};
+
+static void PvzToolkitBridgeUpdate()
+{
+	Board* aBoard = gLawnApp != nullptr ? gLawnApp->mBoard : nullptr;
+	SeedBank* aBank = aBoard != nullptr ? aBoard->mSeedBank : nullptr;
+
+	gPvzToolkitBridge.lawn = gLawnApp;
+	gPvzToolkitBridge.board = aBoard;
+	gPvzToolkitBridge.seedBank = aBank;
+
+	int aCount = aBank != nullptr ? aBank->mNumPackets : 0;
+	if (aCount > 15) aCount = 15;
+	gPvzToolkitBridge.slotCount = aCount;
+
+	gPvzToolkitBridge.sun = aBoard != nullptr ? &aBoard->mSunMoney : nullptr;
+	gPvzToolkitBridge.money = gLawnApp != nullptr && gLawnApp->mPlayerInfo != nullptr ? &gLawnApp->mPlayerInfo->mCoins : nullptr;
+	gPvzToolkitBridge.level = gLawnApp != nullptr && gLawnApp->mPlayerInfo != nullptr ? &gLawnApp->mPlayerInfo->mLevel : nullptr;
+	gPvzToolkitBridge.gameMode = gLawnApp != nullptr ? (int*)&gLawnApp->mGameMode : nullptr;
+	gPvzToolkitBridge.gameScene = gLawnApp != nullptr ? (int*)&gLawnApp->mGameScene : nullptr;
+	gPvzToolkitBridge.adventureLevel = aBoard != nullptr ? (int*)&aBoard->mLevel : nullptr;
+	gPvzToolkitBridge.endlessRounds = aBoard != nullptr && aBoard->mChallenge != nullptr ? (int*)&aBoard->mChallenge->mSurvivalStage : nullptr;
+
+	gPvzToolkitBridge.spawnList = aBoard != nullptr ? (void*)&aBoard->mZombiesInWave[0][0] : nullptr;
+	gPvzToolkitBridge.spawnType = aBoard != nullptr ? (void*)&aBoard->mZombieAllowed[0] : nullptr;
+	gPvzToolkitBridge.frameDuration = gLawnApp != nullptr ? &gLawnApp->mFrameTime : nullptr;
+	gPvzToolkitBridge.debugMode = aBoard != nullptr ? (int*)&aBoard->mDebugTextMode : nullptr;
+	if (gPvzToolkitBridge.appDataPath[0] == 0)
+	{
+		std::string aPath = Sexy::GetAppDataFolder();
+		strncpy(gPvzToolkitBridge.appDataPath, aPath.c_str(), sizeof(gPvzToolkitBridge.appDataPath) - 1);
+		gPvzToolkitBridge.appDataPath[sizeof(gPvzToolkitBridge.appDataPath) - 1] = 0;
+	}
+	gPvzToolkitBridge.scene = aBoard != nullptr ? (int*)&aBoard->mBackground : nullptr;
+	bool aUseIZombieCosts = gLawnApp != nullptr && gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode);
+	gPvzToolkitBridge.plantCosts = aUseIZombieCosts ? gIZombiePlantCosts : &gPlantDefs[0].mSeedCost;
+	gPvzToolkitBridge.plantCostStride = aUseIZombieCosts ? sizeof(int) : sizeof(PlantDefinition);
+	gPvzToolkitBridge.nextIzFormation = &gIZombieNextFormation;
+
+	gPvzToolkitBridge.treeHeight = nullptr;
+	if (gLawnApp != nullptr && gLawnApp->mPlayerInfo != nullptr && gLawnApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
+		gPvzToolkitBridge.treeHeight = (int*)&gLawnApp->mPlayerInfo->mChallengeRecords[gLawnApp->GetCurrentChallengeIndex()];
+
+	if (gLawnApp != nullptr && gLawnApp->mPlayerInfo != nullptr)
+	{
+		PlayerInfo* aInfo = gLawnApp->mPlayerInfo;
+		unsigned int aFlags = gPvzToolkitBridge.flags;
+		auto refill = [&](StoreItem theItem)
+		{
+			if (aInfo->mPurchases[(int)theItem] < PURCHASE_COUNT_OFFSET + 10)
+				aInfo->mPurchases[(int)theItem] = PURCHASE_COUNT_OFFSET + 10;
+		};
+		if (aFlags & TK_CHEAT_FERTILIZER)	refill(StoreItem::STORE_ITEM_FERTILIZER);
+		if (aFlags & TK_CHEAT_BUG_SPRAY)	refill(StoreItem::STORE_ITEM_BUG_SPRAY);
+		if (aFlags & TK_CHEAT_TREE_FOOD)	refill(StoreItem::STORE_ITEM_TREE_FOOD);
+		if (aFlags & TK_CHEAT_CHOCOLATE)	refill(StoreItem::STORE_ITEM_CHOCOLATE);
+
+		if ((gPvzToolkitBridge.flags & TK_CHEAT_STOP_SPAWNING) && aBoard != nullptr)
+		{
+			aBoard->mZombieCountDown = 99999;
+			aBoard->mHugeWaveCountDown = 99999;
+		}
+		if ((gPvzToolkitBridge.flags & TK_CHEAT_MUSHROOM_AWAKE) && aBoard != nullptr)
+		{
+			Plant* aPlant = nullptr;
+			while (aBoard->IteratePlants(aPlant))
+				aPlant->mIsAsleep = false;
+		}
+		if ((gPvzToolkitBridge.flags & TK_CHEAT_UNLOCK_LIMBO) && gLawnApp->mGameSelector != nullptr)
+			gLawnApp->mGameSelector->mUnlockSelectorCheat = true;
+
+		if (gPvzToolkitBridge.command == TK_COMMAND_UNLOCK_ALL)
+		{
+			aInfo->mLevel = 50;
+			aInfo->mFinishedAdventure = 1;
+			aInfo->mHasUnlockedMinigames = true;
+			aInfo->mHasUnlockedPuzzleMode = true;
+			aInfo->mHasUnlockedSurvivalMode = true;
+			aInfo->mHasSeenUpsell = true;
+			aInfo->mCoins = aInfo->mCoins < 10000000 ? 10000000 : aInfo->mCoins;
+			for (int i = (int)StoreItem::STORE_ITEM_PLANT_GATLINGPEA; i <= (int)StoreItem::STORE_ITEM_PLANT_IMITATER; ++i)
+				aInfo->mPurchases[i] = 1;
+			for (int i = 0; i < 100; ++i)
+			{
+				if (aInfo->mChallengeRecords[i] < 1)
+					aInfo->mChallengeRecords[i] = 1;
+			}
+
+			if (gLawnApp->mGameSelector != nullptr)
+				gLawnApp->mGameSelector->SyncProfile(false);
+			aInfo->SaveDetails();
+
+			gPvzToolkitBridge.command = TK_COMMAND_NONE;
+		}
+	}
+
+	if (gPvzToolkitBridge.command == TK_COMMAND_DIRECT_WIN && gLawnApp != nullptr && gLawnApp->mBoard != nullptr)
+	{
+		gLawnApp->mBoard->ToolkitDirectWin();
+		gPvzToolkitBridge.command = TK_COMMAND_NONE;
+	}
+
+	for (int i = 0; i < 15; ++i)
+	{
+		if (aBank != nullptr && i < aCount)
+		{
+			gPvzToolkitBridge.packetType[i] = (int*)&aBank->mSeedPackets[i].mPacketType;
+			gPvzToolkitBridge.packetImitater[i] = (int*)&aBank->mSeedPackets[i].mImitaterType;
+		}
+		else
+		{
+			gPvzToolkitBridge.packetType[i] = nullptr;
+			gPvzToolkitBridge.packetImitater[i] = nullptr;
+		}
+	}
+
+	while (gPvzToolkitBridge.cmdTail != gPvzToolkitBridge.cmdHead)
+	{
+		unsigned int aIndex = gPvzToolkitBridge.cmdTail & 63;
+		int aCode = gPvzToolkitBridge.cmdCode[aIndex];
+		int aA = gPvzToolkitBridge.cmdA[aIndex];
+		int aB = gPvzToolkitBridge.cmdB[aIndex];
+		int aC = gPvzToolkitBridge.cmdC[aIndex];
+		int aD = gPvzToolkitBridge.cmdD[aIndex];
+		gPvzToolkitBridge.cmdTail++;
+
+		Board* aBoard = gLawnApp != nullptr ? gLawnApp->mBoard : nullptr;
+		if (aBoard == nullptr)
+			continue;
+
+		switch (aCode)
+		{
+		case 1: // 种植物: a=row, b=col, c=type, d=imitater
+			aBoard->NewPlant(aB, aA, (SeedType)aC, aD ? (SeedType)aC : SeedType::SEED_NONE);
+			break;
+		case 2: // 放僵尸: a=row, b=col, c=type
+		{
+			Zombie* aZombie = aBoard->AddZombieInRow((ZombieType)aC, aA, 0);
+			if (aZombie != nullptr)
+				aZombie->mPosX = aBoard->GridToPixelX(aB, aA) - 30.0f;
+			break;
+		}
+		case 3: // 墓碑
+			aBoard->AddAGraveStone(aB, aA);
+			break;
+		case 4: // 梯子
+			aBoard->AddALadder(aB, aA);
+			break;
+		case 5: // 僵王
+			aBoard->AddZombieInRow(ZombieType::ZOMBIE_BOSS, aA >= 0 ? aA : 0, 0);
+			break;
+		case 6: // 清空僵尸
+			aBoard->RemoveAllZombies();
+			break;
+		case 7: // 清空植物
+		{
+			Plant* aPlant = nullptr;
+			while (aBoard->IteratePlants(aPlant))
+				aPlant->Die();
+			break;
+		}
+		case 8: // 清空场地物件
+		{
+			GridItem* aItem = nullptr;
+			while (aBoard->IterateGridItems(aItem))
+				aItem->GridItemDie();
+			break;
+		}
+		case 9: // 背景音乐
+			if (gLawnApp->mMusic != nullptr)
+				gLawnApp->mMusic->PlayMusic((MusicTune)aA);
+			break;
+		}
+	}
+}
+
 int gSlowMoCounter = 0;  //0x6A9EC4
 
 #include "SexyAppFramework/Debug.h"
@@ -165,7 +355,8 @@ bool LawnApp::PlayVideo(std::string url, bool isSkipable, Color bgColor)
 				EnforceCursor();
 				break;
 			case SDL_EVENT_WINDOW_FOCUS_LOST:
-				mActive = false;
+				if (!(gPvzToolkitBridge.flags & TK_CHEAT_BACKGROUND))
+					mActive = false;
 				RehupFocus();
 				break;
 			case SDL_EVENT_KEY_DOWN:
@@ -592,7 +783,8 @@ bool LawnApp::UpdateAppStep(bool* updated)
 					EnforceCursor();
 					break;
 				case SDL_EVENT_WINDOW_FOCUS_LOST:
-					mActive = false;
+					if (!(gPvzToolkitBridge.flags & TK_CHEAT_BACKGROUND))
+						mActive = false;
 					RehupFocus();
 					break;
 				case SDL_EVENT_WINDOW_RESIZED:
@@ -2272,8 +2464,6 @@ void LawnApp::Init()
 	mTimer.Start();
 
 	SDL_RaiseWindow(LawnApp::mSDLWindow);
-	if (!IsScreenSaver() && !IsParticleEditor())
-		PlayVideo(StrFormat("%svideos/intro.mp4", SDL_GetBasePath()).c_str(), true);
 }
 
 //0x4522A0
@@ -2319,6 +2509,10 @@ bool LawnApp::DebugKeyDown(int theKey)
 //0x4522E0
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
+#ifdef _DEBUG
+	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened")
+		return;
+#endif
 	if (theParamName == "-tod")
 	{
 #ifdef _DEBUG
@@ -2631,6 +2825,7 @@ void LawnApp::UpdatePlayTimeStats()
 //0x452650
 void LawnApp::UpdateFrames()
 {
+	PvzToolkitBridgeUpdate();
 	if ((!mActive || mMinimized) && mBoard)
 	{
 		mBoard->ResetFPSStats();
@@ -2899,6 +3094,20 @@ void LawnApp::LoadingCompleted()
 	}
 	else
 	{
+#ifdef _DEBUG
+		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr)
+		{
+			KillBoard();
+			GameMode aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
+			if (strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr)
+				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS;
+			else if (strstr(GetCommandLineA(), "--iz-strengthened") != nullptr)
+				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
+			PreNewGame(aMode, false);
+			StartPlaying();
+			return;
+		}
+#endif
 		ShowGameSelector();
 	}
 }
@@ -3271,7 +3480,8 @@ bool LawnApp::IsPuzzleMode()
 {
 	return
 		(mGameMode >= GameMode::GAMEMODE_SCARY_POTTER_1 && mGameMode <= GameMode::GAMEMODE_SCARY_POTTER_ENDLESS) ||
-		(mGameMode >= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_1 && mGameMode <= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS);
+		(mGameMode >= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_1 && mGameMode <= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS) ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
 }
 
 //0x453710
@@ -3308,7 +3518,8 @@ bool LawnApp::IsEndlessScaryPotter(GameMode theGameMode)
 
 bool LawnApp::IsEndlessIZombie(GameMode theGameMode)
 {
-	return theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
+	return theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
+		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
 }
 
 //0x453740
@@ -3361,7 +3572,8 @@ bool LawnApp::IsIZombieLevel()
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_7 ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_8 ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_9 ||
-		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
 }
 
 //0x453820

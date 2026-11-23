@@ -91,6 +91,12 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_LEFTPEATER,        nullptr, ReanimationType::REANIM_REPEATER,      5,  200,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("REPEATER") }
 };
 
+int gIZombiePlantCosts[33] = {
+    100, 50, 150, 50, 25, 175, 150, 200, 0, 25, 75,
+    75, 75, 25, 75, 125, 25, 50, 325, 25, 125, 100,
+    175, 125, 0, 25, 125, 150, 125, 125, 75, 100, 100
+};
+
 //0x401B20
 Plant::Plant()
 {
@@ -1852,7 +1858,7 @@ void Plant::DoSquashDamage()
 #endif
                 ? -20 : 0))
             {
-                aZombie->TakeDamage(1800, aZombie->mInPool ? 18U : 0U); //18U 
+                aZombie->TakeDamage(1800, (aZombie->mInPool ? 18U : 0U) | (1U << DamageFlags::DAMAGE_NO_ARMOR_PARTICLES));
 
                /* if (aZombie->CanLoseBodyParts() && aZombie->mHasArm && aZombie->mBodyHealth < 2 * aZombie->mBodyMaxHealth / 3)
                 {
@@ -2306,8 +2312,8 @@ void Plant::UpdateChomper()
             }
             else
             {
-                aZombie->DropHelm(0U);
-                aZombie->DropShield(0U);
+                aZombie->DropHelm(1U << DamageFlags::DAMAGE_DOESNT_LEAVE_BODY);
+                aZombie->DropShield(1U << DamageFlags::DAMAGE_DOESNT_LEAVE_BODY);
                 aZombie->DropFlag();
                 if (aZombie->mZombieType == ZOMBIE_POLEVAULTER)
                 {
@@ -5201,7 +5207,7 @@ void Plant::Draw(Graphics* g)
 }
 
 //0x4660B0
-void Plant::DrawSeedType(Graphics* g, SeedType theSeedType, SeedType theImitaterType, DrawVariation theDrawVariation, float thePosX, float thePosY, unsigned int theBitVariation)
+void Plant::DrawSeedType(Graphics* g, SeedType theSeedType, SeedType theImitaterType, DrawVariation theDrawVariation, float thePosX, float thePosY, unsigned int theBitVariation, bool theAsZombie)
 {
     g->PushState();
     int aCelRow = 0;
@@ -5301,7 +5307,7 @@ void Plant::DrawSeedType(Graphics* g, SeedType theSeedType, SeedType theImitater
     g->PushState();
     //g->SetLinearBlend(true);
 
-    if (Challenge::IsZombieSeedType(aSeedType))
+    if (Challenge::IsZombieSeedType(aSeedType) || (theAsZombie && Challenge::IsIZombiePlantSeed(aSeedType)))
     {
         ZombieType aZombieType = Challenge::IZombieSeedTypeToZombieType(aSeedType);
         if (aZombieType == ZombieType::ZOMBIE_POLEVAULTER)
@@ -5979,7 +5985,8 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         TOD_ASSERT();
         break;
     }
-    if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+    if ((mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY) ||
+        (mSeedType == SeedType::SEED_KERNELPULT && (gPvzToolkitBridge.flags & TK_CHEAT_BUTTER_ONLY)))
     {
         aProjectileType = ProjectileType::PROJECTILE_BUTTER;
     }
@@ -6553,6 +6560,12 @@ PlantDefinition& GetPlantDefinition(SeedType theSeedType)
 //0x467B00
 int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
 {
+    if (gPvzToolkitBridge.flags & TK_CHEAT_FREE_PLANT)
+        return 0;
+
+    if (gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode) && theSeedType >= SeedType::SEED_PEASHOOTER && theSeedType <= SeedType::SEED_CABBAGEPULT)
+        return gIZombiePlantCosts[(int)theSeedType];
+
     if (!gLawnApp->GetDialog(Dialogs::DIALOG_ALMANAC) && (gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST))
     {
         if (theSeedType == SeedType::SEED_REPEATER)
@@ -6589,14 +6602,14 @@ int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
     case SeedType::SEED_ZOMBIE_PAIL:                return 125;
     case SeedType::SEED_ZOMBIE_LADDER:              return 150;
     case SeedType::SEED_ZOMBIE_DIGGER:              return 125;
-    case SeedType::SEED_ZOMBIE_BUNGEE:              return 125;
+    case SeedType::SEED_ZOMBIE_BUNGEE:              return 100;
     case SeedType::SEED_ZOMBIE_FOOTBALL:            return 175;
-    case SeedType::SEED_ZOMBIE_BALLOON:             return 150;
-    case SeedType::SEED_ZOMBIE_SCREEN_DOOR:         return 100;
+    case SeedType::SEED_ZOMBIE_BALLOON:             return 200;
+    case SeedType::SEED_ZOMBIE_SCREEN_DOOR:         return 125;
     case SeedType::SEED_ZOMBONI:                    return 175;
     case SeedType::SEED_ZOMBIE_POGO:                return 200;
     case SeedType::SEED_ZOMBIE_DANCER:              return 350;
-    case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 300;
+    case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 250;
     case SeedType::SEED_ZOMBIE_IMP:                 return 50;
     default:
     {
@@ -6643,7 +6656,7 @@ SexyString Plant::GetToolTip(SeedType theSeedType)
 //0x467E30
 int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
 {
-    if (Challenge::IsZombieSeedType(theSeedType))
+    if (Challenge::IsZombieSeedType(theSeedType) || Challenge::IsIZombiePlantSeed(theSeedType))
     {
         return 0;
     }

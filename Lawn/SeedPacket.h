@@ -47,8 +47,8 @@ class SeedBank : public GameObject
 public:
     int				    mNumPackets;                    //+0x24
     SeedPacket		    mSeedPackets[SEEDBANK_MAX];     //+0x28
-    int				    mCutSceneDarken;                //+0x348
-    int				    mConveyorBeltCounter;           //+0x34C
+    int				    mCutSceneDarken;                //+0x3D8
+    int				    mConveyorBeltCounter;           //+0x3DC
 
 public:
     SeedBank();
@@ -67,6 +67,7 @@ public:
 };
 
 void				    SeedPacketDrawSeed(Graphics* g, float x, float y, SeedType theSeedType, SeedType theImitaterType, float theOffsetX, float theOffsetY, float theScale);
+SeedType			    SeedPacketGetLayoutSeedType(SeedType theSeedType);
 void				    DrawSeedPacket(Graphics* g, float x, float y, SeedType theSeedType, SeedType theImitaterType, float thePercentDark, int theGrayness, bool theDrawCost, bool theUseCurrentCost);
 
 

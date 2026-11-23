@@ -147,6 +147,11 @@ void SeedPacket::Update()
 		FlashIfReady();
 	}
 
+	if (!mActive && mRefreshing && (gPvzToolkitBridge.flags & (TK_CHEAT_FAST_BELT | TK_CHEAT_RELOAD_INSTANT | TK_CHEAT_PLANT_ANYWHERE)))
+	{
+		mRefreshCounter = mRefreshTime + 1;
+	}
+
 	if (!mActive && mRefreshing)
 	{
 		mRefreshCounter++;
@@ -183,6 +188,35 @@ void SeedPacket::Update()
 		{
 			mSlotMachineCountDown = 1;
 		}
+	}
+}
+
+SeedType SeedPacketGetLayoutSeedType(SeedType theSeedType)
+{
+	if (theSeedType >= SEED_ZOMBIE_NORMAL && theSeedType <= SEED_ZOMBIE_IMP)
+		return theSeedType;
+	if (!Challenge::IsZombieSeedType(theSeedType) && !Challenge::IsIZombiePlantSeed(theSeedType))
+		return theSeedType;
+
+	switch (Challenge::IZombieSeedTypeToZombieType(theSeedType))
+	{
+	case ZOMBIE_TRAFFIC_CONE:		return SEED_ZOMBIE_TRAFFIC_CONE;
+	case ZOMBIE_POLEVAULTER:		return SEED_ZOMBIE_POLEVAULTER;
+	case ZOMBIE_PAIL:				return SEED_ZOMBIE_PAIL;
+	case ZOMBIE_DOOR:				return SEED_ZOMBIE_SCREEN_DOOR;
+	case ZOMBIE_FOOTBALL:			return SEED_ZOMBIE_FOOTBALL;
+	case ZOMBIE_DANCER:
+	case ZOMBIE_BACKUP_DANCER:		return SEED_ZOMBIE_DANCER;
+	case ZOMBIE_BALLOON:			return SEED_ZOMBIE_BALLOON;
+	case ZOMBIE_DIGGER:				return SEED_ZOMBIE_DIGGER;
+	case ZOMBIE_POGO:				return SEED_ZOMBIE_POGO;
+	case ZOMBIE_BUNGEE:				return SEED_ZOMBIE_BUNGEE;
+	case ZOMBIE_LADDER:				return SEED_ZOMBIE_LADDER;
+	case ZOMBIE_GARGANTUAR:
+	case ZOMBIE_REDEYE_GARGANTUAR:	return SEED_ZOMBIE_GARGANTUAR;
+	case ZOMBIE_IMP:				return SEED_ZOMBIE_IMP;
+	case ZOMBIE_ZAMBONI:			return SEED_ZOMBONI;
+	default:						return SEED_ZOMBIE_NORMAL;
 	}
 }
 
@@ -258,16 +292,17 @@ void SeedPacketDrawSeed(Graphics* g, float x, float y, SeedType theSeedType, See
 		g->PushState();
 		g->mScaleX = theScale * g->mScaleX;
 		g->mScaleY = theScale * g->mScaleY;
-		if (theSeedType == SeedType::SEED_ZOMBIE_BUNGEE)
+		SeedType aLayoutSeedType = SeedPacketGetLayoutSeedType(theSeedType);
+		if (aLayoutSeedType == SeedType::SEED_ZOMBIE_BUNGEE)
 		{
 			g->mClipRect.mY = y + theOffsetY + 10 + gSexyAppBase->mDDInterface->mWideScreenOffsetY;
 			y -= 180;
 		}
-		if (theSeedType == SeedType::SEED_ZOMBIE_POLEVAULTER)
+		if (aLayoutSeedType == SeedType::SEED_ZOMBIE_POLEVAULTER)
 		{
 			g->SetClipRect(x + theOffsetX + 25, g->mClipRect.mY, 40, g->mClipRect.mHeight);
 		}
-		Plant::DrawSeedType(g, theSeedType, theImitaterType, DrawVariation::VARIATION_NORMAL, x + theOffsetX, y + theOffsetY);
+		Plant::DrawSeedType(g, theSeedType, theImitaterType, DrawVariation::VARIATION_NORMAL, x + theOffsetX, y + theOffsetY, 0U, true);
 		g->PopState();
 	}
 }
@@ -328,7 +363,7 @@ void DrawSeedPacket(Graphics* g, float x, float y, SeedType theSeedType, SeedTyp
 	bool aDrawSeedInMiddle = true;
 	float aOffsetX = 5.0f;
 	float aOffsetY = 8.0f;
-	switch (aSeedType)
+	switch (SeedPacketGetLayoutSeedType(aSeedType))
 	{
 	case SeedType::SEED_TALLNUT:
 		aScale = 0.3f;
@@ -695,6 +730,8 @@ void SeedPacket::Draw(Graphics* g)
 		}
 
 		g->PushState();
+		if (mWidth != SEED_PACKET_WIDTH)
+			g->SetScale((float)mWidth / SEED_PACKET_WIDTH, 1.0f, 0.0f, 0.0f);
 
 		DrawSeedPacket(g, mOffsetX, 0.0f, mPacketType, mImitaterType, aPercentDark, aGrayness, false, true);
 		
@@ -1076,9 +1113,9 @@ bool SeedBank::MouseHitTest(int x, int y, HitResult* theHitResult)
 {
 	if (x - mX <= mWidth - 5 && mNumPackets > 0)
 	{
-		for (SeedPacket& aSeedPacket : mSeedPackets)
+		for (int i = 0; i < mNumPackets; i++)
 		{
-			if (aSeedPacket.MouseHitTest(x - mX, y - mY, theHitResult))
+			if (mSeedPackets[i].MouseHitTest(x - mX, y - mY, theHitResult))
 			{
 				return true;
 			}
@@ -1271,6 +1308,7 @@ void SeedBank::UpdateWidth()
 	for (int i = 0; i < mNumPackets; i++)
 	{
 		mSeedPackets[i].mX = mBoard->GetSeedPacketPositionX(i);
+		mSeedPackets[i].mWidth = mNumPackets == 15 ? 45 : SEED_PACKET_WIDTH;
 	}
 }
 

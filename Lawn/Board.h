@@ -421,6 +421,8 @@ public:
 	void							DropLootPiece(int thePosX, int thePosY, int theDropFactor);
 	void							UpdateLevelEndSequence();
 	LawnMower*						GetBottomLawnMower();
+	void						ToolkitDirectWin();
+
 	bool							CanDropLoot();
 	ZombieType						GetIntroducedZombieType();
 	void							PickSpecialGraveStone();

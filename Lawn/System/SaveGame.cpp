@@ -546,6 +546,9 @@ bool LawnLoadGame(Board* theBoard, const SexyString& theFilePath)
 //0x4820D0
 bool LawnSaveGame(Board* theBoard, const SexyString& theFilePath)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_READONLY)
+		return false;
+
 	SaveGameContext aContext;
 	aContext.mFailed = false;
 	aContext.mReading = false;

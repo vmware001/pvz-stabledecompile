@@ -486,12 +486,11 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 		else if (theZombieType == ZombieType::ZOMBIE_GATLING_HEAD)	aHeadType = ReanimationType::REANIM_GATLINGPEA;
 		else if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)	aHeadType = ReanimationType::REANIM_SQUASH;
 
-		Reanimation aHeadReanim;
-		aHeadReanim.ReanimationInitializeType(0, 0, aHeadType);
-		if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD) aHeadReanim.PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
-		else aHeadReanim.PlayReanim("anim_head_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
+		Reanimation* aHeadReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aHeadType);
+		if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD) aHeadReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
+		else aHeadReanim->PlayReanim("anim_head_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 
-		AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, &aHeadReanim, 0.0f, 0.0f);
+		AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
 		aReanim.mFrameBasePose = 0;
 
 		if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 55.0f, -15.0f, 0.2f, -0.75f, 0.75f);
@@ -526,11 +525,10 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 		else if (theZombieType == ZombieType::ZOMBIE_TALLNUT_HEAD)	aHeadType = ReanimationType::REANIM_TALLNUT;
 		else if (theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD)	aHeadType = ReanimationType::REANIM_JALAPENO;
 
-		Reanimation aHeadReanim;
-		aHeadReanim.ReanimationInitializeType(0, 0, aHeadType);
-		aHeadReanim.PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
+		Reanimation* aHeadReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aHeadType);
+		aHeadReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 
-		AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, &aHeadReanim, 0.0f, 0.0f);
+		AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
 		aReanim.mFrameBasePose = 0;
 
 		if (theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 50.0f, 0.0f, 0.2f, -0.8f, 0.8f);

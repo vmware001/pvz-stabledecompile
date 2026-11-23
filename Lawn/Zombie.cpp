@@ -2299,6 +2299,8 @@ void Zombie::UpdateZombieSnorkel()
 //0x526AE0
 void Zombie::UpdateZombieJackInTheBox()
 {
+    if ((gPvzToolkitBridge.flags & TK_CHEAT_JACK_NO_EXPLODE) && mZombiePhase != ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING)
+        return;
     if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING)
     {
         if (mPhaseCounter <= 0 && mHasHead)
@@ -3025,7 +3027,8 @@ void Zombie::UpdateZombieBobsled()
         }
     }
 
-    mBoard->mIceTimer[mRow] = max(500, mBoard->mIceTimer[mRow]);
+    if (!(gPvzToolkitBridge.flags & TK_CHEAT_NO_ICE_TRAIL))
+        mBoard->mIceTimer[mRow] = max(500, mBoard->mIceTimer[mRow]);
     if (mPosX + 10.0f < mBoard->mIceMinX[mRow] && GetBobsledPosition() == 0)
     {
         TakeDamage(6, 8U);
@@ -4919,6 +4922,8 @@ void Zombie::UpdateBurn()
 //0x52AE60
 void Zombie::Update()
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_STOP_ZOMBIES)
+		return;
     TOD_ASSERT(!mDead);
 
     mZombieAge++;
@@ -8395,13 +8400,19 @@ void Zombie::EatPlant(Plant* thePlant)
         }
     }
 
-    thePlant->mPlantHealth -= DAMAGE_PER_EAT;
+    int aChewDamage = DAMAGE_PER_EAT;
+    if (gPvzToolkitBridge.flags & TK_CHEAT_PLANT_INVINCIBLE)
+        aChewDamage = 0;
+    else if (gPvzToolkitBridge.flags & TK_CHEAT_PLANT_WEAK)
+        aChewDamage *= 3;
+
+    thePlant->mPlantHealth -= aChewDamage;
     thePlant->mRecentlyEatenCountdown = 50;
     if (mApp->IsIZombieLevel() && mJustGotShotCounter < -500)
     {
         if (thePlant->mSeedType == SeedType::SEED_WALLNUT || thePlant->mSeedType == SeedType::SEED_TALLNUT || thePlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
         {
-            thePlant->mPlantHealth -= DAMAGE_PER_EAT;
+            thePlant->mPlantHealth -= aChewDamage;
         }
     }
 
@@ -9679,10 +9690,18 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
 //0x5317C0
 void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_ZOMBIE_INVINCIBLE)
+		return;
+	if (gPvzToolkitBridge.flags & TK_CHEAT_ZOMBIE_WEAK)
+		theDamage *= 3;
+
     if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING && !TestBit(theDamageFlags, 18)  || IsDeadOrDying())
         return;
 
     int aDamageRemaining = theDamage;
+    unsigned int aArmorDamageFlags = theDamageFlags;
+    if (TestBit(theDamageFlags, DamageFlags::DAMAGE_NO_ARMOR_PARTICLES))
+        aArmorDamageFlags |= 1U << DamageFlags::DAMAGE_DOESNT_LEAVE_BODY;
 
     if (IsFlying())
     {
@@ -9690,7 +9709,7 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
     }
     if (aDamageRemaining > 0 && mShieldType != ShieldType::SHIELDTYPE_NONE && !TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_BYPASSES_SHIELD))
     {
-        aDamageRemaining = TakeShieldDamage(aDamageRemaining, theDamageFlags);
+        aDamageRemaining = TakeShieldDamage(aDamageRemaining, aArmorDamageFlags);
         if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_HITS_SHIELD_AND_BODY))
         {
             aDamageRemaining = theDamage;
@@ -9698,7 +9717,7 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
     }
     if (aDamageRemaining > 0 && mHelmType != HelmType::HELMTYPE_NONE)
     {
-        aDamageRemaining = TakeHelmDamage(aDamageRemaining, theDamageFlags);
+        aDamageRemaining = TakeHelmDamage(aDamageRemaining, aArmorDamageFlags);
     }
     if (aDamageRemaining > 0)
     {

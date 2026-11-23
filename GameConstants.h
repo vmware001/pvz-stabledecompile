@@ -17,7 +17,7 @@ const int           LAWN_XMIN = 40;
 const int           LAWN_YMIN = 80;
 const int           HIGH_GROUND_HEIGHT = 30;
 
-const int           SEEDBANK_MAX = 10;
+const int           SEEDBANK_MAX = 15;
 const int           SEED_BANK_OFFSET_X = 0;
 const int           SEED_BANK_OFFSET_X_END = 10;
 const int           SEED_CHOOSER_OFFSET_Y = 516;
@@ -121,3 +121,87 @@ const int           STORESCREEN_PAGESTRING_Y = 500;
 //#define _SPLASH_SNOWPEA
 
 #include "ConstEnums.h" // Include the enums at the end to properly setup the entries related to the defines
+
+// ---- PvZ Toolkit 桥接 ----
+enum PvzToolkitCheatBits
+{
+	TK_CHEAT_FERTILIZER     = 1 << 0,
+	TK_CHEAT_BUG_SPRAY      = 1 << 1,
+	TK_CHEAT_TREE_FOOD      = 1 << 2,
+	TK_CHEAT_CHOCOLATE      = 1 << 3,
+	TK_CHEAT_AUTO_COLLECT   = 1 << 4,
+	TK_CHEAT_NO_LOOT        = 1 << 5,
+	TK_CHEAT_FREE_PLANT     = 1 << 6,
+	TK_CHEAT_PLANT_ANYWHERE = 1 << 7,
+	TK_CHEAT_FAST_BELT      = 1 << 8,
+	TK_CHEAT_LOCK_SHOVEL    = 1 << 9,
+	TK_CHEAT_PLANT_INVINCIBLE  = 1 << 10,
+	TK_CHEAT_PLANT_WEAK        = 1 << 11,
+	TK_CHEAT_ZOMBIE_INVINCIBLE = 1 << 12,
+	TK_CHEAT_ZOMBIE_WEAK       = 1 << 13,
+	TK_CHEAT_RELOAD_INSTANT    = 1 << 14,
+	TK_CHEAT_BUTTER_ONLY       = 1 << 15,
+	TK_CHEAT_STOP_SPAWNING     = 1 << 16,
+	TK_CHEAT_STOP_ZOMBIES      = 1 << 17,
+	TK_CHEAT_MUSHROOM_AWAKE    = 1 << 18,
+	TK_CHEAT_NO_CRATER         = 1 << 19,
+	TK_CHEAT_NO_ICE_TRAIL      = 1 << 20,
+	TK_CHEAT_JACK_NO_EXPLODE   = 1 << 21,
+	TK_CHEAT_NO_FOG            = 1 << 22,
+	TK_CHEAT_SEE_VASE          = 1 << 23,
+	TK_CHEAT_BACKGROUND        = 1 << 24,
+	TK_CHEAT_READONLY          = 1 << 25,
+	TK_CHEAT_UNLOCK_LIMBO      = 1 << 26,
+	TK_CHEAT_UNLOCK_SUN        = 1 << 27,
+};
+
+enum PvzToolkitCommand
+{
+	TK_COMMAND_NONE = 0,
+	TK_COMMAND_UNLOCK_ALL = 1,
+	TK_COMMAND_DIRECT_WIN = 2,
+};
+
+struct PvzToolkitBridgeV1
+{
+	char magic[12];
+	unsigned int version;
+	unsigned int size;
+	void* lawn;
+	void* board;
+	void* seedBank;
+	int slotCount;
+	int* sun;
+	int* money;
+	int* level;
+	int* gameMode;
+	int* gameScene;
+	int* packetType[15];
+	int* packetImitater[15];
+	int* adventureLevel;
+	int* endlessRounds;
+	int* treeHeight;
+	unsigned int flags;
+	unsigned int command;
+
+	// 命令队列: 修改器写入, 游戏每帧取一条执行
+	unsigned int cmdHead;
+	unsigned int cmdTail;
+	int cmdCode[64];
+	int cmdA[64];
+	int cmdB[64];
+	int cmdC[64];
+	int cmdD[64];
+
+	void* spawnList;
+	void* spawnType;
+	int* frameDuration;
+	int* scene;
+	int* debugMode;
+	char appDataPath[260];
+	int* plantCosts;
+	int plantCostStride;
+	int* nextIzFormation;
+};
+
+extern PvzToolkitBridgeV1 gPvzToolkitBridge;

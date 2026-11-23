@@ -782,7 +782,10 @@ void Coin::Update()
     }
     else if (!mIsBeingCollected)
     {
-        UpdateFall();
+        if ((gPvzToolkitBridge.flags & TK_CHEAT_AUTO_COLLECT) && (IsSun() || IsMoney()))
+            Collect();
+        else
+            UpdateFall();
     }
     else
     {

@@ -435,6 +435,12 @@ bool DescParser::LoadDescriptor(const std::string& theFileName)
 	if (aStream==NULL)
 		return false;	
 
+	int aBom0 = p_fgetc(aStream);
+	int aBom1 = p_fgetc(aStream);
+	int aBom2 = p_fgetc(aStream);
+	if (aBom0 != 0xEF || aBom1 != 0xBB || aBom2 != 0xBF)
+		p_fseek(aStream, 0, SEEK_SET);
+
 	char aBuffChar = 0;
 
 	while (!p_feof(aStream))

@@ -252,6 +252,8 @@ Board::Board(LawnApp* theApp)
 	{
 		mMenuButton->SetLabel(_S("[MENU_BUTTON]"));
 		mMenuButton->Resize(681 + mApp->mDDInterface->mWideScreenOffsetX, -10 + mApp->mDDInterface->mWideScreenOffsetY, 117, 46);
+		if (mApp->IsEndlessIZombie(mApp->mGameMode))
+			mMenuButton->Resize(745 + mApp->mDDInterface->mWideScreenOffsetX, -10 + mApp->mDDInterface->mWideScreenOffsetY, 53, 46);
 	}
 
 	if (mApp->IsLastStand())
@@ -572,6 +574,14 @@ GridItem* Board::AddALadder(int theGridX, int theGridY)
 //0x408F80
 GridItem* Board::AddACrater(int theGridX, int theGridY)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_NO_CRATER)
+	{
+		GridItem* aItem = AddAGraveStone(theGridX, theGridY);
+		if (aItem != nullptr)
+			aItem->GridItemDie();
+		return aItem;
+	}
+
 	GridItem* aCrater = mGridItems.DataArrayAlloc();
 	aCrater->mGridItemType = GridItemType::GRIDITEM_CRATER;
 	aCrater->mRenderOrder = MakeRenderOrder(RenderLayer::RENDER_LAYER_GROUND, theGridY, 1);
@@ -1139,6 +1149,8 @@ void Board::PickBackground()
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_8:
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_9:
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS:
+	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS:
+	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED:
 #ifdef _MOBILE_MINIGAMES
 	case GameMode::GAMEMODE_CHALLENGE_VASEBREAKER:
 #endif
@@ -1864,9 +1876,9 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
 		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
 	}
-	else if (aGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS)
+	else if (mApp->IsEndlessIZombie(aGameMode))
 	{
-		TOD_ASSERT(mSeedBank->mNumPackets == 9);
+		TOD_ASSERT(mSeedBank->mNumPackets == 15);
 		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);
 		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
 		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_POLEVAULTER);
@@ -1876,6 +1888,12 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
 		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
 		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_DANCER);
+		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
+		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBONI);
+		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBIE_GARGANTUAR);
+		mSeedBank->mSeedPackets[12].SetPacketType(SeedType::SEED_ZOMBIE_BALLOON);
+		mSeedBank->mSeedPackets[13].SetPacketType(SeedType::SEED_BLOVER);
+		mSeedBank->mSeedPackets[14].SetPacketType(SeedType::SEED_PUMPKINSHELL);
 	}
 	else if (mApp->IsScaryPotterLevel())
 	{
@@ -3321,6 +3339,9 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	{
 		return PlantingReason::PLANTING_NOT_HERE;
 	}
+
+	if ((gPvzToolkitBridge.flags & TK_CHEAT_PLANT_ANYWHERE) && !Challenge::IsZombieSeedType(theSeedType) && !Challenge::IsIZombiePlantSeed(theSeedType))
+		return PlantingReason::PLANTING_OK;
 
 	// 从关卡玩法上，判断能否种植
 	PlantingReason aReason = mChallenge->CanPlantAt(theGridX, theGridY, theSeedType);
@@ -4847,6 +4868,8 @@ void Board::MouseDownWithTool(int x, int y, int theClickCount, CursorType theCur
 	}
 		
 	ClearCursor();
+	if ((gPvzToolkitBridge.flags & TK_CHEAT_LOCK_SHOVEL) && theCursorType == CursorType::CURSOR_TYPE_SHOVEL)
+		mCursorObject->mCursorType = CursorType::CURSOR_TYPE_SHOVEL;
 }
 
 //0x411280
@@ -8969,6 +8992,9 @@ void Board::UpdateFog()
 //0x41A730
 void Board::DrawFog(Graphics* g)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_NO_FOG)
+		return;
+
 	Image* aImageFog = mApp->Is3DAccelerated() ? Sexy::IMAGE_FOG : Sexy::IMAGE_FOG_SOFTWARE;
 	for (int x = 0; x < MAX_GRID_SIZE_X + 4; x++)
 	{
@@ -10123,44 +10149,7 @@ void Board::KeyChar(SexyChar theChar)
 	}
 	else if (theChar == _S('!'))
 	{
-		mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
-		if (IsLastStandStageWithRepick() && !mApp->IsLastStandEndless(mApp->mGameMode))
-		{
-			if (mNextSurvivalStageCounter == 0)
-			{
-				mCurrentWave = mNumWaves;
-				RemoveAllZombies();
-				FadeOutLevel();
-			}
-		}
-		else if ((mApp->IsScaryPotterLevel() && !IsFinalScaryPotterStage()) || mApp->IsEndlessIZombie(mApp->mGameMode))
-		{
-			if (mNextSurvivalStageCounter == 0)
-			{
-				RemoveAllZombies();
-				FadeOutLevel();
-			}
-		}
-		else if (mApp->IsSurvivalMode() || mApp->IsLastStandEndless(mApp->mGameMode))
-		{
-			if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO)
-			{
-				return;
-			}
-
-			mCurrentWave = mNumWaves;
-			if (!IsSurvivalStageWithRepick())
-			{
-				RemoveAllZombies();
-			}
-			FadeOutLevel();
-		}
-		else
-		{
-			RemoveAllZombies();
-			FadeOutLevel();
-			mBoardFadeOutCounter = 200;
-		}
+		ToolkitDirectWin();
 	}
 	else if (theChar == _S('+'))
 	{
@@ -10651,9 +10640,10 @@ void Board::KeyChar(SexyChar theChar)
 void Board::AddSunMoney(int theAmount)
 {
 	mSunMoney += theAmount;
-	if (mSunMoney > 9990)
+	int aSunLimit = (gPvzToolkitBridge.flags & TK_CHEAT_UNLOCK_SUN) ? 999999 : 9990;
+	if (mSunMoney > aSunLimit)
 	{
-		mSunMoney = 9990;
+		mSunMoney = aSunLimit;
 	}
 	if (mSunMoney >= 8000)
 		// if ( !*(mApp->mPlayerInfo + 48) ) todo @Patoke: figure this out
@@ -10848,9 +10838,9 @@ int Board::GetNumSeedsInBank()
 	{
 		return 8;
 	}
-	if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS)
+	if (mApp->IsEndlessIZombie(mApp->mGameMode))
 	{
-		return 9;
+		return 15;
 	}
 	if (mApp->mGameMode >= GameMode::GAMEMODE_LAST_STAND_STAGE_1 && mApp->mGameMode <= GameMode::GAMEMODE_LAST_STAND_STAGE_5)
 	{
@@ -10963,6 +10953,7 @@ int Board::GetSeedPacketPositionX(int theIndex)
 	if (mApp->IsSlotMachineLevel())			return theIndex * 59 + 247;
 	if (HasConveyorBeltSeedBank())			return theIndex * 50 + 91;
 	
+	if (mSeedBank->mNumPackets == 15)		return theIndex * 45 + 70;
 	if (mSeedBank->mNumPackets <= 7)		return theIndex * 59 + 85;
 	else if (mSeedBank->mNumPackets == 8)	return theIndex * 54 + 81;
 	else if (mSeedBank->mNumPackets == 9)	return theIndex * 52 + 80;
@@ -10973,7 +10964,7 @@ int Board::GetSeedPacketPositionX(int theIndex)
 int Board::GetSeedBankExtraWidth()
 {
 	int aNumPackets = mSeedBank->mNumPackets;
-	return aNumPackets <= 6 ? 0 : aNumPackets == 7 ? 60 : aNumPackets == 8 ? 76 : aNumPackets == 9 ? 112 : 153;
+	return aNumPackets <= 6 ? 0 : aNumPackets == 7 ? 60 : aNumPackets == 8 ? 76 : aNumPackets == 9 ? 112 : aNumPackets == 15 ? 284 : 153;
 }
 
 void Board::OffsetYForPlanting(int& theY, SeedType theSeedType)
@@ -11550,6 +11541,9 @@ int Board::GetGraveStoneCount()
 //0x41CDB0
 void Board::DropLootPiece(int thePosX, int thePosY, int theDropFactor)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_NO_LOOT)
+		return;
+
 	if (mApp->IsFirstTimeAdventureMode() && mLevel == mApp->mPlayerInfo->GetLevel())
 	{
 		if (mLevel == 22 && mCurrentWave > 5 && !mApp->mPlayerInfo->mHasUnlockedMinigames && CountCoinByType(CoinType::COIN_PRESENT_MINIGAMES) == 0)
@@ -11664,6 +11658,50 @@ void Board::DropLootPiece(int thePosX, int thePosY, int theDropFactor)
 	mApp->PlayFoley(FoleyType::FOLEY_SPAWN_SUN);
 	AddCoin(thePosX - 40, thePosY, aCoinType, CoinMotion::COIN_MOTION_COIN);
 	mDroppedFirstCoin = true;
+}
+
+
+//0x41D2C0
+void Board::ToolkitDirectWin()
+{
+	mApp->mBoardResult = BoardResult::BOARDRESULT_CHEAT;
+	if (IsLastStandStageWithRepick() && !mApp->IsLastStandEndless(mApp->mGameMode))
+	{
+		if (mNextSurvivalStageCounter == 0)
+		{
+			mCurrentWave = mNumWaves;
+			RemoveAllZombies();
+			FadeOutLevel();
+		}
+	}
+	else if ((mApp->IsScaryPotterLevel() && !IsFinalScaryPotterStage()) || mApp->IsEndlessIZombie(mApp->mGameMode))
+	{
+		if (mNextSurvivalStageCounter == 0)
+		{
+			RemoveAllZombies();
+			FadeOutLevel();
+		}
+	}
+	else if (mApp->IsSurvivalMode() || mApp->IsLastStandEndless(mApp->mGameMode))
+	{
+		if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO)
+		{
+			return;
+		}
+
+		mCurrentWave = mNumWaves;
+		if (!IsSurvivalStageWithRepick())
+		{
+			RemoveAllZombies();
+		}
+		FadeOutLevel();
+	}
+	else
+	{
+		RemoveAllZombies();
+		FadeOutLevel();
+		mBoardFadeOutCounter = 200;
+	}
 }
 
 //0x41D2C0
@@ -11901,6 +11939,9 @@ bool Board::PlantUsesAcceleratedPricing(SeedType theSeedType)
 //0x41DAE0
 int Board::GetCurrentPlantCost(SeedType theSeedType, SeedType theImitaterType)
 {
+	if (gPvzToolkitBridge.flags & TK_CHEAT_FREE_PLANT)
+		return 0;
+
 	int aCost = Plant::GetCost(theSeedType, theImitaterType);
 	if (PlantUsesAcceleratedPricing(theSeedType))
 	{
