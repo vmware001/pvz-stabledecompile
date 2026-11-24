@@ -1151,6 +1151,7 @@ void Board::PickBackground()
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS:
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS:
 	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED:
+	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED:
 #ifdef _MOBILE_MINIGAMES
 	case GameMode::GAMEMODE_CHALLENGE_VASEBREAKER:
 #endif
@@ -1404,7 +1405,8 @@ void Board::PickBackground()
 		case BackgroundType::BACKGROUND_3_POOL:
 		case BackgroundType::BACKGROUND_4_FOG:
 		{
-			InitBushes();
+			if (!mApp->IsIZombieLevel())
+				InitBushes();
 			break;
 		}
 	}
@@ -1882,18 +1884,18 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);
 		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
 		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_POLEVAULTER);
-		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_ZOMBIE_PAIL);
+		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_PUMPKINSHELL);
 		mSeedBank->mSeedPackets[4].SetPacketType(SeedType::SEED_ZOMBIE_BUNGEE);
-		mSeedBank->mSeedPackets[5].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
-		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
-		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
-		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_DANCER);
-		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
-		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBONI);
-		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBIE_GARGANTUAR);
+		mSeedBank->mSeedPackets[5].SetPacketType(SeedType::SEED_ZOMBIE_PAIL);
+		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
+		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
+		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
+		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_BLOVER);
+		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
+		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBONI);
 		mSeedBank->mSeedPackets[12].SetPacketType(SeedType::SEED_ZOMBIE_BALLOON);
-		mSeedBank->mSeedPackets[13].SetPacketType(SeedType::SEED_BLOVER);
-		mSeedBank->mSeedPackets[14].SetPacketType(SeedType::SEED_PUMPKINSHELL);
+		mSeedBank->mSeedPackets[13].SetPacketType(SeedType::SEED_ZOMBIE_GARGANTUAR);
+		mSeedBank->mSeedPackets[14].SetPacketType(SeedType::SEED_ZOMBIE_DANCER);
 	}
 	else if (mApp->IsScaryPotterLevel())
 	{
@@ -4221,10 +4223,21 @@ void Board::UpdateToolTip()
 	}
 	else
 	{
-		//mToolTip->SetLabel(StrFormat(_S("[%s]"),GetPlantDefinition(aUseSeedType).mPlantName));
-
-		// @Patoke: wrong function call
-		mToolTip->SetLabel(Plant::GetNameString(aUseSeedType));
+		// IZ 植物编号卡: 悬浮提示显示对应僵尸名而不是植物名
+		if (mApp->IsIZombieLevel() && Challenge::IsIZombiePlantSeed(aUseSeedType))
+		{
+			ZombieType aZombieType = Challenge::IZombieSeedTypeToZombieType(aUseSeedType);
+			if (aZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)
+				mToolTip->SetLabel(_S("[SQUASH_ZOMBIE]"));
+			else if (aZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD)
+				mToolTip->SetLabel(_S("[WALLNUT_ZOMBIE]"));
+			else
+				mToolTip->SetLabel(Plant::GetNameString(aUseSeedType));
+		}
+		else
+		{
+			mToolTip->SetLabel(Plant::GetNameString(aUseSeedType));
+		}
 	}
 
 	int aPlantCost = GetCurrentPlantCost(aSeedPacket->mPacketType, aSeedPacket->mImitaterType);

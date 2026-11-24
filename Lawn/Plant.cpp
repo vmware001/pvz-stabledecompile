@@ -92,9 +92,9 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
 };
 
 int gIZombiePlantCosts[33] = {
-    100, 50, 150, 50, 25, 175, 150, 200, 0, 25, 75,
-    75, 75, 25, 75, 125, 25, 50, 325, 25, 125, 100,
-    175, 125, 0, 25, 125, 150, 125, 125, 75, 100, 100
+    50, 50, 75, 75, 125, 75, 125, 175, 350, 50, 50,
+    75, 175, 125, 75, 125, 200, 125, 175, 100, 100, 150,
+    150, 250, 50, 1500, 50, 150, 125, 100, 75, 200, 300
 };
 
 //0x401B20
@@ -595,16 +595,6 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     case SeedType::SEED_KERNELPULT:
         TOD_ASSERT(aBodyReanim);
         aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
-#ifdef _HAS_KERNELPULT_BUTTER_IDLE
-        if (IsOnBoard() && mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN && Sexy::Rand(4) == 0)
-        {
-            Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-            aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-            aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_NORMAL);
-            aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_HIDDEN);
-            mState = PlantState::STATE_KERNELPULT_BUTTER;
-        }
-#endif
         break;
     case SeedType::SEED_MAGNETSHROOM:
         TOD_ASSERT(aBodyReanim);
@@ -1133,21 +1123,8 @@ bool Plant::FindTargetAndFire(int theRow, PlantWeapon thePlantWeapon)
         case SeedType::SEED_MELONPULT:
         case SeedType::SEED_WINTERMELON:    mShootingCounter = 36;  break;
         case SeedType::SEED_KERNELPULT:
-        {
-#ifndef _HAS_KERNELPULT_BUTTER_IDLE
-            if (Sexy::Rand(4) == 0)
-            {
-
-            
-                aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_NORMAL);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_HIDDEN);
-                mState = PlantState::STATE_KERNELPULT_BUTTER;
-            }
-#endif
             mShootingCounter = 30;
             break;
-        }
         case SeedType::SEED_CACTUS:
 #ifdef _HAS_BLOOM_AND_DOOM_CONTENTS
         case SeedType::SEED_STINGER:
@@ -1858,12 +1835,13 @@ void Plant::DoSquashDamage()
 #endif
                 ? -20 : 0))
             {
+                int aTotalHealth = aZombie->mBodyHealth + aZombie->mHelmHealth + aZombie->mShieldHealth + aZombie->mFlyingHealth;
+                bool aCanFlatten = aZombie->mZombieType != ZombieType::ZOMBIE_GARGANTUAR && aZombie->mZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR &&
+                    aZombie->mZombieType != ZombieType::ZOMBIE_ZAMBONI && aZombie->mZombieType != ZombieType::ZOMBIE_CATAPULT &&
+                    !aZombie->IsBobsledTeamWithSled() && !aZombie->IsFlying();
+                if (aCanFlatten && aZombie->mZombieType != ZombieType::ZOMBIE_BOSS && !aZombie->IsDeadOrDying() && aTotalHealth <= 1800)
+                    aZombie->Squish(); // 仅动画: 两条腿走路的僵尸压扁显示, 载具/巨人保持正常死亡
                 aZombie->TakeDamage(1800, (aZombie->mInPool ? 18U : 0U) | (1U << DamageFlags::DAMAGE_NO_ARMOR_PARTICLES));
-
-               /* if (aZombie->CanLoseBodyParts() && aZombie->mHasArm && aZombie->mBodyHealth < 2 * aZombie->mBodyMaxHealth / 3)
-                {
-                    aZombie->DropArm(0U);
-                }*/
             }
         }
     }
@@ -2114,7 +2092,7 @@ void Plant::UpdateUmbrella()
     {
         if (mStateCountdown == 0)
         {
-            //mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PROJECTILE, mRow + 1, 0);
+            mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PROJECTILE, mRow + 1, 0);
             mState = PlantState::STATE_UMBRELLA_REFLECTING;
         }
     }
@@ -2123,49 +2101,9 @@ void Plant::UpdateUmbrella()
         Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
         if (aBodyReanim->mLoopCount > 0)
         {
-            //PlayIdleAnim(0.0f);
+            PlayIdleAnim(0.0f);
             mState = PlantState::STATE_NOTREADY;
-            //mRenderOrder = CalcRenderOrder();
-        }
-    }
-
-    Reanimation* aSpecialReanim = mApp->ReanimationTryToGet(mSpecialReanimID);
-    Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-    if (aSpecialReanim) 
-    {
-        if (aBodyReanim)
-        {
-            aSpecialReanim->mColorOverride = aBodyReanim->mColorOverride;
-            aSpecialReanim->mExtraAdditiveColor = aBodyReanim->mExtraAdditiveColor;
-            aSpecialReanim->mExtraOverlayColor = aBodyReanim->mExtraOverlayColor;
-            aSpecialReanim->mEnableExtraAdditiveDraw = aBodyReanim->mEnableExtraAdditiveDraw;
-            aSpecialReanim->mEnableExtraOverlayDraw = aBodyReanim->mEnableExtraOverlayDraw;
-        }
-
-        if (aSpecialReanim->mLoopCount > 0)
-        {
-            if (aSpecialReanim->IsAnimPlaying("anim_block"))
-            {
-                aSpecialReanim->StartBlend(20);
-                aSpecialReanim->SetFramesForLayer("anim_idle");
-                aSpecialReanim->mLoopCount = 0;
-                aSpecialReanim->mAnimTime = aBodyReanim->mAnimTime;
-                aSpecialReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-                aSpecialReanim->mAnimRate = aBodyReanim->mAnimRate;
-                aSpecialReanim->mRenderOrder = aBodyReanim->mRenderOrder;
-            }
-            else if (aSpecialReanim->IsAnimPlaying("anim_idle"))
-            {
-                mApp->RemoveReanimation(mSpecialReanimID);
-                Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-                if (aBodyReanim)
-                {
-                    for (int i = 0; i < aBodyReanim->mDefinition->mTracks.count; i++)
-                    {
-                        aBodyReanim->mTrackInstances[i].mRenderGroup = RENDER_GROUP_NORMAL;
-                    }
-                }
-            }
+            mRenderOrder = CalcRenderOrder();
         }
     }
 }
@@ -2279,9 +2217,7 @@ void Plant::UpdateChomper()
             if (aZombie)
             {
                 if (aZombie->mZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR || 
-                    aZombie->mZombieType == ZombieType::ZOMBIE_BOSS || aZombie->mZombieType == ZombieType::ZOMBIE_ZAMBONI || 
-                    aZombie->mZombieType == ZombieType::ZOMBIE_CATAPULT || 
-                    aZombie->mZombiePhase >= PHASE_BOBSLED_SLIDING && aZombie->mZombiePhase <= PHASE_BOBSLED_CRASHING)
+                    aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
                 {
                     doBite = true;
                 }
@@ -4053,24 +3989,8 @@ void Plant::UpdateShooting()
             )
         {
             PlantWeapon aPlantWeapon = PlantWeapon::WEAPON_PRIMARY;
-            if (mState == PlantState::STATE_KERNELPULT_BUTTER)
-            {
-                Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_NORMAL);
-                mState = PlantState::STATE_NOTREADY;
-                aPlantWeapon = PlantWeapon::WEAPON_SECONDARY;
-            }
-#ifdef _HAS_KERNELPULT_BUTTER_IDLE
-            if (Sexy::Rand(4) == 0)
-            {
-                Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-                aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_NORMAL);
-                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_HIDDEN);
-                mState = PlantState::STATE_KERNELPULT_BUTTER;
-            }
-#endif
+            if (mSeedType == SeedType::SEED_KERNELPULT && Sexy::Rand(4) == 0)
+                aPlantWeapon = PlantWeapon::WEAPON_SECONDARY;   // 黄油在发射瞬间才决定, 外观上不预告下一发
 
             Zombie* aZombie = FindTargetZombie(mRow, aPlantWeapon);
             Fire(aZombie, mRow, aPlantWeapon);
@@ -5641,42 +5561,7 @@ void Plant::DoSpecial()
             mState = PlantState::STATE_UMBRELLA_TRIGGERED;
             mStateCountdown = 5;
 
-            const PlantDefinition& aPlantDef = GetPlantDefinition(mSeedType);
-
-            Reanimation* aSpecialReanim = mApp->ReanimationTryToGet(mSpecialReanimID);
-            Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-
-            if (!aSpecialReanim)
-            {
-                float aOffsetY = PlantDrawHeightOffset(mBoard, this, mSeedType, mPlantCol, mRow);
-
-                aSpecialReanim = mApp->AddReanimation(mX, mY + aOffsetY, Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PROJECTILE, mRow + 1, 0), aPlantDef.mReanimationType);
-                aSpecialReanim->AssignRenderGroupToTrack("anim_face", RENDER_GROUP_HIDDEN);
-                aSpecialReanim->PlayReanim("anim_block", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 22.0f);
-                mSpecialReanimID = mApp->ReanimationGetID(aSpecialReanim);
-
-                if (!FloatApproxEqual(mRad, 0.0f))
-                {
-                    float aOffsetX = -sin(mRad) * aOffsetY;
-                    TodScaleRotateTransformMatrix(aSpecialReanim->mOverlayMatrix, mX + aBodyReanim->mOverlayMatrix.m02 + aOffsetX, mY + aOffsetX + aBodyReanim->mOverlayMatrix.m12, mRad, 1.0f, 1.0f);
-                }
-
-                if (aBodyReanim)
-                {
-                    aSpecialReanim->mFilterEffect = aBodyReanim->mFilterEffect;
-                    aBodyReanim->ShowOnlyTrack("anim_face");
-                }
-            }
-            else
-            {
-                aSpecialReanim->StartBlend(20);
-                aSpecialReanim->SetFramesForLayer("anim_block");
-                aSpecialReanim->mAnimTime = 0.0f;
-                aSpecialReanim->mLoopCount = 0;
-                aSpecialReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-                aSpecialReanim->mAnimRate = 22.0f;
-                aSpecialReanim->mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PROJECTILE, mRow + 1, 0);
-            }  
+            PlayBodyReanim("anim_block", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 22.0f);
             
             //PlayBodyReanim("anim_block", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 22.0f);
         }

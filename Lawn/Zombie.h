@@ -186,6 +186,9 @@ public:
     ReanimationID                   mZombatarAccessoryID;
     ReanimationID                   mZombatarHatID;
     ReanimationID                   mZombatarHatLineID;
+    bool                            mSquished;              // 倭瓜击杀的动画表现: 绘制压扁图案后消失(不改动伤害结算)
+    int                             mSquishedCountdown;
+    MemoryImage*                    mSquishedImage;         // 被压扁时的姿态快照(含朝向/防具, 已纵向压扁)
 
 public:
     Zombie();
@@ -199,6 +202,7 @@ public:
     void                            Update();
     void                            DieNoLoot();
     /*inline*/ void                 DieWithLoot();
+    void                            Squish();               // 倭瓜击杀的动画表现: 压扁图案停留后消失
     void                            Draw(Graphics* g);
     void                            DrawZombie(Graphics* g, const ZombieDrawPosition& theDrawPos);
     void                            DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawPos);

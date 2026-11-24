@@ -215,11 +215,7 @@ void CursorObject::Draw(Graphics* g)
             aOffsetX -= 55.0f;
             aOffsetY -= 70.0f;
             SeedType aLayoutType = SeedPacketGetLayoutSeedType(mType);
-            if (aLayoutType == SeedType::SEED_ZOMBIE_BUNGEE)
-            {
-                aOffsetY -= 600;
-            }
-            else if (aLayoutType ==  SeedType::SEED_ZOMBONI)
+            if (aLayoutType ==  SeedType::SEED_ZOMBONI)
             {
                 aOffsetX += 10;
                 aOffsetY -= 25;

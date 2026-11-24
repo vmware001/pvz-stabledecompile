@@ -62,6 +62,8 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include <winhttp.h>
+#pragma comment(lib, "winhttp.lib")
 
 bool gIsPartnerBuild = false;
 bool gSlowMo = false;  //0x6A9EAA
@@ -187,13 +189,23 @@ static void PvzToolkitBridgeUpdate()
 	{
 		if (aBank != nullptr && i < aCount)
 		{
-			gPvzToolkitBridge.packetType[i] = (int*)&aBank->mSeedPackets[i].mPacketType;
-			gPvzToolkitBridge.packetImitater[i] = (int*)&aBank->mSeedPackets[i].mImitaterType;
+			SeedPacket& aPacket = aBank->mSeedPackets[i];
+			gPvzToolkitBridge.packetType[i] = (int*)&aPacket.mPacketType;
+			gPvzToolkitBridge.packetImitater[i] = (int*)&aPacket.mImitaterType;
+			if (aPacket.mPacketType == SeedType::SEED_IMITATER)
+				gPvzToolkitBridge.packetDisplayType[i] = (int)aPacket.mImitaterType + 48;
+			else if (Challenge::IsZombieSeedType(aPacket.mPacketType))
+				gPvzToolkitBridge.packetDisplayType[i] = (int)Challenge::IZombieSeedTypeToZombieType(aPacket.mPacketType);
+			else
+				gPvzToolkitBridge.packetDisplayType[i] = (int)aPacket.mPacketType;
+			gPvzToolkitBridge.packetCost[i] = aBoard->GetCurrentPlantCost(aPacket.mPacketType, aPacket.mImitaterType);
 		}
 		else
 		{
 			gPvzToolkitBridge.packetType[i] = nullptr;
 			gPvzToolkitBridge.packetImitater[i] = nullptr;
+			gPvzToolkitBridge.packetDisplayType[i] = -1;
+			gPvzToolkitBridge.packetCost[i] = -1;
 		}
 	}
 
@@ -253,6 +265,81 @@ static void PvzToolkitBridgeUpdate()
 			if (gLawnApp->mMusic != nullptr)
 				gLawnApp->mMusic->PlayMusic((MusicTune)aA);
 			break;
+		case 10: // 切换场地
+			aBoard->PickBackground();
+			break;
+		case 11: // 按位掩码清除场地物件
+		{
+			GridItem* aItem = nullptr;
+			while (aBoard->IterateGridItems(aItem))
+				if (aItem->mGridItemType >= 0 && aItem->mGridItemType < 31 && (aA & (1 << aItem->mGridItemType)))
+					aItem->GridItemDie();
+			break;
+		}
+		case 12: // 设置植物唤醒/成长状态
+		{
+			Plant* aPlant = aBoard->GetTopPlantAt(aB, aA, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
+			if (aPlant != nullptr)
+			{
+				if (aC >= 0)
+					aPlant->SetSleeping(aC == 0);
+				if (aD != 0 && aPlant->mSeedType == SEED_POTATOMINE)
+					aPlant->mState = STATE_POTATO_ARMED;
+				else if (aD != 0 && aPlant->mSeedType == SEED_SUNSHROOM)
+					aPlant->mState = STATE_SUNSHROOM_BIG;
+			}
+			break;
+		}
+		case 15: // 在指定格放置僵尸: a=列 b=行 c=僵尸类型
+		{
+			if (aBoard->mChallenge != nullptr)
+				aBoard->mChallenge->IZombiePlaceZombie((ZombieType)aC, aA, aB);
+			break;
+		}
+		case 14: // 在指定格放置植物: a=列 b=行 c=植物类型
+		{
+			Plant* aPlant = aBoard->NewPlant(aA, aB, (SeedType)aC, SeedType::SEED_NONE);
+			if (aPlant != nullptr && aPlant->mIsAsleep)
+				aPlant->SetSleeping(false);
+			break;
+		}
+		case 13: // 在指定行放置钉耙
+		{
+			GridItem* aRake = aBoard->mGridItems.DataArrayAlloc();
+			aRake->mGridItemType = GRIDITEM_RAKE;
+			aRake->mGridX = aB;
+			aRake->mGridY = aA;
+			aRake->mPosX = aBoard->GridToPixelX(aB, aA);
+			aRake->mPosY = aBoard->GridToPixelY(aB, aA);
+			aRake->mRenderOrder = Board::MakeRenderOrder(RENDER_LAYER_GRAVE_STONE, aA, 9);
+			aRake->mGridItemReanimID = gLawnApp->ReanimationGetID(aBoard->CreateRakeReanim(aB, aA, 0));
+			aRake->mGridItemState = GRIDITEM_STATE_RAKE_ATTRACTING;
+			break;
+		}
+		}
+	}
+
+	gPvzToolkitBridge.plantCount = 0;
+	gPvzToolkitBridge.gridItemCount = 0;
+	if (aBoard != nullptr)
+	{
+		Plant* aPlant = nullptr;
+		while (aBoard->IteratePlants(aPlant) && gPvzToolkitBridge.plantCount < 96)
+		{
+			int i = gPvzToolkitBridge.plantCount++;
+			gPvzToolkitBridge.plantType[i] = aPlant->mSeedType;
+			gPvzToolkitBridge.plantRow[i] = aPlant->mRow;
+			gPvzToolkitBridge.plantCol[i] = aPlant->mPlantCol;
+			gPvzToolkitBridge.plantImitater[i] = aPlant->mSeedType == SEED_IMITATER || aPlant->mImitaterType != SEED_NONE;
+			gPvzToolkitBridge.plantAwake[i] = !aPlant->mIsAsleep;
+		}
+		GridItem* aItem = nullptr;
+		while (aBoard->IterateGridItems(aItem) && gPvzToolkitBridge.gridItemCount < 96)
+		{
+			int i = gPvzToolkitBridge.gridItemCount++;
+			gPvzToolkitBridge.gridItemType[i] = aItem->mGridItemType;
+			gPvzToolkitBridge.gridItemRow[i] = aItem->mGridY;
+			gPvzToolkitBridge.gridItemCol[i] = aItem->mGridX;
 		}
 	}
 }
@@ -556,7 +643,8 @@ void LawnApp::MakeWindow()
 		mFullScreenWindow = false;
 	}
 
-#define _WIDE_SCREEN
+	mWidth = 800;
+	mHeight = 600;
 #ifdef _ULTRA_WIDESCREEN
 	mWidth = 1280;
 	mHeight = 720;
@@ -580,7 +668,33 @@ void LawnApp::MakeWindow()
 	SDL_RendererLogicalPresentation presentationMode;
 
 	mSDLWindow = SDL_CreateWindow(mTitle.c_str(), mWidth, mHeight, windowFlags);
+	// 部分机器的 SDL3 默认选中不支持纹理回读的渲染后端(如 gpu), 会导致
+	// ReanimatorCache 回读崩溃; 按回读兼容性排序指定优先级, 游戏其余渲染不受影响。
+	SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11,direct3d12,opengl,gpu,software");
 	mSDLRenderer = SDL_CreateRenderer(mSDLWindow, nullptr);
+	{
+		// 若仍落到 gpu 后端(不支持纹理回读), 强制换成 direct3d11 / opengl
+		const char* aName = mSDLRenderer ? SDL_GetRendererName(mSDLRenderer) : nullptr;
+		if (aName != nullptr && strcmp(aName, "gpu") == 0)
+		{
+			SDL_DestroyRenderer(mSDLRenderer);
+			mSDLRenderer = SDL_CreateRenderer(mSDLWindow, "direct3d11");
+			if (mSDLRenderer == nullptr)
+				mSDLRenderer = SDL_CreateRenderer(mSDLWindow, "opengl");
+			if (mSDLRenderer == nullptr)
+				mSDLRenderer = SDL_CreateRenderer(mSDLWindow, nullptr);
+		}
+	}
+	{
+		// 记录实际后端便于远程诊断
+		const char* aRendererName = mSDLRenderer ? SDL_GetRendererName(mSDLRenderer) : "(null)";
+		FILE* rf = fopen("renderer.txt", "w");
+		if (rf)
+		{
+			fprintf(rf, "renderer=%s\n", aRendererName ? aRendererName : "(null)");
+			fclose(rf);
+		}
+	}
 	SDL_SetRenderVSync(mSDLRenderer, mEnableVsync);
 	SDL_SetRenderLogicalPresentation(mSDLRenderer, mWidth, mHeight, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 	mHWnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(mSDLWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
@@ -2510,7 +2624,7 @@ bool LawnApp::DebugKeyDown(int theKey)
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
 #ifdef _DEBUG
-	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened")
+	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced")
 		return;
 #endif
 	if (theParamName == "-tod")
@@ -3074,8 +3188,186 @@ void LawnApp::LoadingThreadCompleted()
 }
 
 //0x452CB0
+// ---- 自动更新与修改器随启 ----
+static bool GetExeDirW(wchar_t* out, int n)
+{
+	if (!GetModuleFileNameW(NULL, out, n))
+		return false;
+	wchar_t* p = wcsrchr(out, L'\\');
+	if (!p)
+		return false;
+	*p = 0;
+	return true;
+}
+
+// 安装包场景: 修改器与游戏同目录, 找到则一并启动
+static void TryLaunchToolkit()
+{
+	wchar_t dir[MAX_PATH], tk[MAX_PATH];
+	if (!GetExeDirW(dir, MAX_PATH))
+		return;
+	swprintf(tk, MAX_PATH, L"%s\\PvZToolkit.exe", dir);
+	if (GetFileAttributesW(tk) != INVALID_FILE_ATTRIBUTES)
+		ShellExecuteW(NULL, L"open", tk, NULL, dir, SW_SHOW);
+}
+
+static bool HttpFetch(const wchar_t* host, const wchar_t* path, const wchar_t* outFile, std::string* outMem)
+{
+	bool ok = false;
+	HINTERNET ses = WinHttpOpen(L"PvZUpdate/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
+	if (!ses)
+		return false;
+	WinHttpSetTimeouts(ses, 8000, 8000, 8000, 30000);
+	HINTERNET con = WinHttpConnect(ses, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+	HINTERNET req = NULL;
+	if (con)
+		req = WinHttpOpenRequest(con, L"GET", path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+	if (req && WinHttpSendRequest(req, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) && WinHttpReceiveResponse(req, NULL))
+	{
+		if (outFile)
+		{
+			HANDLE f = CreateFileW(outFile, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (f != INVALID_HANDLE_VALUE)
+			{
+				ok = true;
+				DWORD n, w;
+				char buf[65536];
+				for (;;)
+				{
+					if (!WinHttpReadData(req, buf, sizeof(buf), &n) || n == 0)
+						break;
+					if (!WriteFile(f, buf, n, &w, NULL) || w != n)
+					{
+						ok = false;
+						break;
+					}
+				}
+				CloseHandle(f);
+				if (!ok)
+					DeleteFileW(outFile);
+			}
+		}
+		else if (outMem)
+		{
+			ok = true;
+			DWORD n;
+			char buf[4096];
+			std::string data;
+			while (WinHttpReadData(req, buf, sizeof(buf), &n) && n)
+				data.append(buf, n);
+			*outMem = data;
+		}
+	}
+	if (req) WinHttpCloseHandle(req);
+	if (con) WinHttpCloseHandle(con);
+	WinHttpCloseHandle(ses);
+	return ok;
+}
+
+static DWORD WINAPI UpdateThreadProc(LPVOID)
+{
+	wchar_t dir[MAX_PATH];
+	if (!GetExeDirW(dir, MAX_PATH))
+		return 0;
+
+	// 只有安装目录(存在 version.txt)才做更新检查, 开发目录静默跳过
+	wchar_t verPath[MAX_PATH];
+	swprintf(verPath, MAX_PATH, L"%s\\version.txt", dir);
+	HANDLE vf = CreateFileW(verPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (vf == INVALID_HANDLE_VALUE)
+		return 0;
+	char vbuf[64] = { 0 };
+	DWORD nrd = 0;
+	ReadFile(vf, vbuf, 63, &nrd, NULL);
+	CloseHandle(vf);
+	std::string local(vbuf, strcspn(vbuf, "\r\n"));
+	int lm = 0, ln = 0;
+	if (local.empty() || sscanf(local.c_str(), "%d.%d", &lm, &ln) != 2)
+		return 0;
+
+	std::string remoteRaw;
+	if (!HttpFetch(L"cf.a0x7fff.site", L"/pvz/version.txt", NULL, &remoteRaw))
+		return 0; // 离线或服务器不可达: 静默继续
+	std::string remote = remoteRaw.substr(0, strcspn(remoteRaw.c_str(), "\r\n"));
+	int rm = 0, rn = 0;
+	if (sscanf(remote.c_str(), "%d.%d", &rm, &rn) != 2)
+		return 0;
+	if (rm < lm || (rm == lm && rn <= ln))
+		return 0; // 已是最新
+
+	// 下载更新包到临时目录
+	wchar_t tmp[MAX_PATH];
+	GetTempPathW(MAX_PATH, tmp);
+	wchar_t zip[MAX_PATH];
+	swprintf(zip, MAX_PATH, L"%sPvZ_GOTY-%S.zip", tmp, remote.c_str());
+	std::wstring zpath = L"/pvz/PvZ_GOTY-" + std::wstring(remote.begin(), remote.end()) + L".zip";
+	if (!HttpFetch(L"cf.a0x7fff.site", zpath.c_str(), zip, NULL))
+		return 0;
+
+	wchar_t msg[256];
+	swprintf(msg, 256, L"\u53d1\u73b0\u65b0\u7248\u672c v%S\uff08\u5f53\u524d v%S\uff09\uff0c\u662f\u5426\u7acb\u5373\u5b89\u88c5\u5e76\u91cd\u542f\u6e38\u620f\uff1f", remote.c_str(), local.c_str());
+	if (MessageBoxW(NULL, msg, L"\u81ea\u52a8\u66f4\u65b0", MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND) != IDYES)
+		return 0;
+
+	// 解包到临时目录(用 tar.exe, 系统自带且数字签名, 杀软不拦截)
+	wchar_t tmpParent[MAX_PATH];
+	GetTempPathW(MAX_PATH, tmpParent);
+	swprintf(tmpParent + wcslen(tmpParent), MAX_PATH - wcslen(tmpParent), L"PvZUp_%lu", GetTickCount());
+	if (!CreateDirectoryW(tmpParent, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+		return 0;
+
+	wchar_t tarCmd[2048];
+	swprintf(tarCmd, 2048, L"\"C:\\Windows\\System32\\tar.exe\" -xf \"%s\" -C \"%s\"", zip, tmpParent);
+	STARTUPINFOW si = { sizeof(si) };
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	PROCESS_INFORMATION pi;
+	if (!CreateProcessW(NULL, tarCmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+		return 0;
+	WaitForSingleObject(pi.hProcess, 5 * 60 * 1000);
+	DWORD tarCode = 1;
+	GetExitCodeProcess(pi.hProcess, &tarCode);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+	if (tarCode != 0)
+	{
+		MessageBoxW(NULL, L"\u66f4\u65b0\u5305\u89e3\u538b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002", L"\u81ea\u52a8\u66f4\u65b0", MB_ICONWARNING | MB_TOPMOST);
+		return 0;
+	}
+
+	// 交给随包附带的 PvZUpdater.exe: 等待本进程退出后覆盖文件并重启
+	wchar_t updater[MAX_PATH], upCmd[2048];
+	swprintf(updater, MAX_PATH, L"%s\\PvZUpdater.exe", dir);
+	if (GetFileAttributesW(updater) == INVALID_FILE_ATTRIBUTES)
+	{
+		MessageBoxW(NULL, L"\u7f3a\u5c11 PvZUpdater.exe \uff0c\u65e0\u6cd5\u5b8c\u6210\u66f4\u65b0\u3002", L"\u81ea\u52a8\u66f4\u65b0", MB_ICONWARNING | MB_TOPMOST);
+		return 0;
+	}
+	swprintf(upCmd, 2048, L"\"%s\" \"%s\" \"%s\" %S", updater, dir, tmpParent, remote.c_str());
+	STARTUPINFOW si2 = { sizeof(si2) };
+	si2.dwFlags = STARTF_USESHOWWINDOW;
+	si2.wShowWindow = SW_SHOW;
+	PROCESS_INFORMATION pi2;
+	if (CreateProcessW(NULL, upCmd, NULL, NULL, FALSE, 0, NULL, dir, &si2, &pi2))
+	{
+		CloseHandle(pi2.hProcess);
+		CloseHandle(pi2.hThread);
+		ExitProcess(0);
+	}
+	MessageBoxW(NULL, L"\u66f4\u65b0\u7a0b\u5e8f\u542f\u52a8\u5931\u8d25\u3002", L"\u81ea\u52a8\u66f4\u65b0", MB_ICONWARNING | MB_TOPMOST);
+	return 0;
+}
+
 void LawnApp::LoadingCompleted()
 {
+	{
+		TryLaunchToolkit();
+		DWORD aTid;
+		HANDLE aTh = CreateThread(NULL, 0, UpdateThreadProc, NULL, 0, &aTid);
+		if (aTh != NULL)
+			CloseHandle(aTh);
+	}
+
 	mWidgetManager->RemoveWidget(mTitleScreen);
 	SafeDeleteWidget(mTitleScreen);
 	mTitleScreen = nullptr;
@@ -3095,12 +3387,14 @@ void LawnApp::LoadingCompleted()
 	else
 	{
 #ifdef _DEBUG
-		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr)
+		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr || strstr(GetCommandLineA(), "--iz-enhanced") != nullptr)
 		{
 			KillBoard();
 			GameMode aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
 			if (strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr)
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS;
+			else if (strstr(GetCommandLineA(), "--iz-enhanced") != nullptr)
+				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED;
 			else if (strstr(GetCommandLineA(), "--iz-strengthened") != nullptr)
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
 			PreNewGame(aMode, false);
@@ -3481,7 +3775,8 @@ bool LawnApp::IsPuzzleMode()
 	return
 		(mGameMode >= GameMode::GAMEMODE_SCARY_POTTER_1 && mGameMode <= GameMode::GAMEMODE_SCARY_POTTER_ENDLESS) ||
 		(mGameMode >= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_1 && mGameMode <= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS) ||
-		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED;
 }
 
 //0x453710
@@ -3519,7 +3814,8 @@ bool LawnApp::IsEndlessScaryPotter(GameMode theGameMode)
 bool LawnApp::IsEndlessIZombie(GameMode theGameMode)
 {
 	return theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
-		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
+		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED;
 }
 
 //0x453740
@@ -3573,7 +3869,8 @@ bool LawnApp::IsIZombieLevel()
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_8 ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_9 ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
-		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED;
 }
 
 //0x453820

@@ -215,10 +215,23 @@ void ReanimatorCache::DrawReanimatorFrame(Graphics* g, float thePosX, float theP
 }
 
 //0x46F280
-SDL3Image* ReanimatorCache::MakeBlankSDL3Image(int theWidth, int theHeight)
+// 某些机器的 SDL3 渲染后端(如 gpu 后端)不支持纹理回读, 读回失败时切换到纯软件缓存,
+// 避免 ConvertSDL3ImageToMemoryImage 解引用空 surface 崩溃(僵尸公敌模式必现)。
+static bool g_SDLCacheBroken = false;
+
+static float GetDisplayScale()
 {
 	SDL_DisplayID display = SDL_GetPrimaryDisplay();
-	float scale = (float)SDL_GetCurrentDisplayMode(display)->h / 600.0f;
+	const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display);
+	if (mode == nullptr || mode->h <= 0)
+		return 1.0f;
+	return (float)mode->h / 600.0f;
+}
+
+// 缓存用空白图: GPU 模式返回 SDL3Image(纹理), 读回不可用时返回清空的 MemoryImage(软件)
+MemoryImage* ReanimatorCache::MakeBlankSDL3Image(int theWidth, int theHeight)
+{
+	float scale = GetDisplayScale();
 	theWidth *= scale;
 	theHeight *= scale;
 
@@ -226,11 +239,19 @@ SDL3Image* ReanimatorCache::MakeBlankSDL3Image(int theWidth, int theHeight)
 	aImage->mWidth = theWidth;
 	aImage->mHeight = theHeight;
 	aImage->mD3DData = SDL_CreateTexture(LawnApp::mSDLRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, aImage->mWidth, aImage->mHeight);
-	SDL_SetTextureBlendMode((SDL_Texture*)aImage->mD3DData, SDL_BLENDMODE_BLEND);
+	if (aImage->mD3DData == nullptr)
+	{
+		// 纹理创建失败(超大显示器/驱动限制): 后续改用软件缓存
+		g_SDLCacheBroken = true;
+	}
+	else
+	{
+		SDL_SetTextureBlendMode((SDL_Texture*)aImage->mD3DData, SDL_BLENDMODE_BLEND);
+	}
 	return aImage;
 }
 
-MemoryImage* ReanimatorCache::ConvertSDL3ImageToMemoryImage(SDL3Image* theImage)
+MemoryImage* ReanimatorCache::ConvertSDL3ImageToMemoryImage(MemoryImage* theImage)
 {
 	MemoryImage* aImage = new MemoryImage();
 	int aBitsCount = theImage->mWidth * theImage->mHeight;
@@ -246,6 +267,16 @@ MemoryImage* ReanimatorCache::ConvertSDL3ImageToMemoryImage(SDL3Image* theImage)
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)theImage->mD3DData);
 
 	SDL_Surface* surface = SDL_RenderReadPixels(LawnApp::mSDLRenderer, NULL);
+	if (surface == nullptr || surface->pixels == nullptr || surface->pitch < theImage->mWidth * 4)
+	{
+		// 该机器渲染后端不支持纹理回读: 切换软件缓存, 本次返回空白图而不是崩溃
+		if (surface != nullptr)
+			SDL_DestroySurface(surface);
+		SDL_SetRenderTarget(LawnApp::mSDLRenderer, oldRenderTarget);
+		g_SDLCacheBroken = true;
+		delete theImage;
+		return aImage;
+	}
 	uint8_t* srcBytes = static_cast<uint8_t*>(surface->pixels);
 
 	for (int y = 0; y < theImage->mHeight; ++y)
@@ -291,10 +322,9 @@ void ReanimatorCache::GetPlantImageSize(SeedType theSeedType, int& theOffsetX, i
 //0x46F330
 MemoryImage* ReanimatorCache::MakeCachedMowerFrame(LawnMowerType theMowerType)
 {
-	SDL3Image* aImage;
+	MemoryImage* aImage;
 
-	SDL_DisplayID display = SDL_GetPrimaryDisplay();
-	float scale = (float)SDL_GetCurrentDisplayMode(display)->h / 600.0f;
+	float scale = GetDisplayScale();
 
 	switch (theMowerType)
 	{
@@ -357,6 +387,8 @@ MemoryImage* ReanimatorCache::MakeCachedMowerFrame(LawnMowerType theMowerType)
 
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, nullptr);
 
+	if (g_SDLCacheBroken)
+		return aImage;
 	return ConvertSDL3ImageToMemoryImage(aImage);
 }
 
@@ -366,18 +398,20 @@ MemoryImage* ReanimatorCache::MakeCachedPlantFrame(SeedType theSeedType, DrawVar
 	int aOffsetX, aOffsetY, aWidth, aHeight;
 	GetPlantImageSize(theSeedType, aOffsetX, aOffsetY, aWidth, aHeight);
 
-	SDL_DisplayID display = SDL_GetPrimaryDisplay();
-	float scale = (float)SDL_GetCurrentDisplayMode(display)->h / 600.0f;
+	float scale = GetDisplayScale();
 	aOffsetX *= scale;
 	aOffsetY *= scale;
 	aWidth *= scale;
 	aHeight *= scale;
 
-	SDL3Image* aMemoryImage = MakeBlankSDL3Image(aWidth, aHeight);
+	MemoryImage* aMemoryImage = MakeBlankSDL3Image(aWidth, aHeight);
 
-	SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
-	SDL_SetRenderDrawColor(LawnApp::mSDLRenderer, 0, 0, 0, SDL_ALPHA_TRANSPARENT);
-	SDL_RenderClear(LawnApp::mSDLRenderer);
+	if (!g_SDLCacheBroken)
+	{
+		SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
+		SDL_SetRenderDrawColor(LawnApp::mSDLRenderer, 0, 0, 0, SDL_ALPHA_TRANSPARENT);
+		SDL_RenderClear(LawnApp::mSDLRenderer);
+	}
 
 	Graphics aMemoryGraphics(aMemoryImage);
 	aMemoryGraphics.SetLinearBlend(true);
@@ -434,6 +468,8 @@ MemoryImage* ReanimatorCache::MakeCachedPlantFrame(SeedType theSeedType, DrawVar
 
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, nullptr);
 
+	if (g_SDLCacheBroken)
+		return aMemoryImage;
 	return ConvertSDL3ImageToMemoryImage(aMemoryImage);
 }
 
@@ -447,12 +483,11 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 	if (theZombieType == ZombieType::ZOMBIE_CACHED_POLEVAULTER_WITH_POLE)	maxWidth = 250;
 	if (theZombieType == ZombieType::ZOMBIE_BUNGEE) maxHeight = 810;
 
-	SDL_DisplayID display = SDL_GetPrimaryDisplay();
-	float scale = (float)SDL_GetCurrentDisplayMode(display)->h / 600.0f;
+	float scale = GetDisplayScale();
 	maxWidth *= scale;
 	maxHeight *= scale;
 
-	SDL3Image* aMemoryImage = MakeBlankSDL3Image(maxWidth, maxHeight);
+	MemoryImage* aMemoryImage = MakeBlankSDL3Image(maxWidth, maxHeight);
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
 	Graphics aMemoryGraphics(aMemoryImage);
 	aMemoryGraphics.SetLinearBlend(true);
@@ -487,6 +522,7 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 		else if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)	aHeadType = ReanimationType::REANIM_SQUASH;
 
 		Reanimation* aHeadReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aHeadType);
+		aHeadReanim->OverrideScale(scale, scale);
 		if (theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD) aHeadReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		else aHeadReanim->PlayReanim("anim_head_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 
@@ -526,6 +562,7 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 		else if (theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD)	aHeadType = ReanimationType::REANIM_JALAPENO;
 
 		Reanimation* aHeadReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aHeadType);
+		aHeadReanim->OverrideScale(scale, scale);
 		aHeadReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 
 		AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
@@ -614,28 +651,10 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 	}
 	else if (theZombieType == ZombieType::ZOMBIE_BUNGEE)
 	{
-		Reanimation aReanim;
-		int relativeY = maxHeight - 210 * scale;
-		aReanim.ReanimationInitializeType(aPosX, aPosY, aZombieDef.mReanimationType);
-		aReanim.OverrideScale(scale, scale);
-
-		int aCordCelHeight = IMAGE_BUNGEECORD->GetCelHeight();
-		int iterat = 0;
-		aMemoryGraphics.SetLinearBlend(false);
-		for (float y = relativeY - aCordCelHeight; y > -aCordCelHeight; y -= aCordCelHeight)
-		{
-			TodDrawImageScaledF(&aMemoryGraphics, IMAGE_BUNGEECORD, (61.0f - 4.0f + 22)* scale, (-iterat * aCordCelHeight - 14)* scale + relativeY, scale, scale);
-			iterat++;
-		}
-		aMemoryGraphics.SetLinearBlend(true);
-
-		SDL3Image* aMemoryImage2 = MakeBlankSDL3Image(200 * scale, 210 * scale);
-		Graphics aMemoryGraphics2(aMemoryImage2);
-		aMemoryGraphics2.SetLinearBlend(true);
-		SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage2->mD3DData);
-		aReanim.Draw(&aMemoryGraphics2);
-		SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
-		aMemoryGraphics.DrawImageF(aMemoryImage2, 0, relativeY);
+		// 卡图只画本体(顶部区域), 绳索省略; 用 DrawReanimatorFrame 正确初始化动画层
+		aMemoryGraphics.mScaleX *= scale;
+		aMemoryGraphics.mScaleY *= scale;
+		DrawReanimatorFrame(&aMemoryGraphics, 55.0f * scale, 0.0f * scale, aZombieDef.mReanimationType, "anim_idle", DrawVariation::VARIATION_NORMAL, DrawFilterVariation::FILTERVARIATION_NONE, DrawBitVariation::BITVARIATION_NONE);
 	}
 #ifdef _HAS_NEW_DANCERS
 	else if (theZombieType == ZombieType::ZOMBIE_DANCER)
@@ -749,7 +768,151 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, nullptr);
 
+	if (g_SDLCacheBroken)
+		return aMemoryImage;
 	return ConvertSDL3ImageToMemoryImage(aMemoryImage);
+}
+
+MemoryImage* ReanimatorCache::GetZombieImage(ZombieType theZombieType)
+{
+	if (theZombieType < 0 || theZombieType >= ZombieType::NUM_CACHED_ZOMBIE_TYPES)
+		return nullptr;
+	if (mZombieImages[theZombieType] == nullptr)
+		mZombieImages[theZombieType] = MakeCachedZombieFrame(theZombieType);
+	return mZombieImages[theZombieType];
+}
+
+// 求图像非透明内容的包围盒(像素任一通道非 0 即视为内容)
+static bool GetImageContentBounds(MemoryImage* theImage, int& theLeft, int& theTop, int& theRight, int& theBottom)
+{
+	if (theImage == nullptr || theImage->mBits == nullptr)
+		return false;
+	int w = theImage->mWidth;
+	int h = theImage->mHeight;
+	theLeft = w;
+	theTop = h;
+	theRight = -1;
+	theBottom = -1;
+	for (int y = 0; y < h; y++)
+	{
+		unsigned long* aRow = theImage->mBits + y * w;
+		for (int x = 0; x < w; x++)
+		{
+			if (aRow[x] != 0)
+			{
+				if (x < theLeft) theLeft = x;
+				if (x > theRight) theRight = x;
+				if (y < theTop) theTop = y;
+				if (y > theBottom) theBottom = y;
+			}
+		}
+	}
+	return theRight >= 0;
+}
+
+// 倭瓜压扁用: 把僵尸的实时身体动画(当前防具/朝向/体型)以"逻辑坐标=像素"渲染进 512x512 画布
+// (矩阵只加画布半宽平移, 不乘显示器缩放), 再在像素空间以脚底为轴纵向压到 1/4。
+// 返回的图可直接用僵尸原生的 g 变换在 (-256,-256) 处绘制——与活着时的渲染逐点重合,
+// 即图案底部与活着时僵尸的底部对齐, 水平位置也完全一致。
+MemoryImage* ReanimatorCache::MakeSquishedZombieFrame(Zombie* theZombie)
+{
+	const int CANVAS = 512;
+	const int HALF = CANVAS / 2;
+
+	MemoryImage* aMemoryImage = MakeBlankSDL3Image(CANVAS, CANVAS);
+	if (g_SDLCacheBroken)
+		return aMemoryImage;
+
+	SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
+	SDL_SetRenderDrawColor(LawnApp::mSDLRenderer, 0, 0, 0, SDL_ALPHA_TRANSPARENT);
+	SDL_RenderClear(LawnApp::mSDLRenderer);
+
+	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(theZombie->mBodyReanimID);
+	if (aBodyReanim != nullptr)
+	{
+		Graphics aMemoryGraphics(aMemoryImage);
+		aMemoryGraphics.SetLinearBlend(true);
+
+		// 平移矩阵(+半宽)使整个动画落进画布; 缩放/镜像(m00/m11)与补偿(m02/m12)全部原样保留
+		SexyTransform2D aOldOverlay = aBodyReanim->mOverlayMatrix;
+		aBodyReanim->mOverlayMatrix.m02 = aOldOverlay.m02 + HALF;
+		aBodyReanim->mOverlayMatrix.m12 = aOldOverlay.m12 + HALF;
+		aBodyReanim->Update();
+
+		// 依次绘制各渲染组: 本体/头盔/头盔遮挡/护盾/护盾遮挡(与 Zombie::DrawReanim 一致,
+		// 但不用其中的裁剪与颜色逻辑, 避免离屏渲染时整图被裁掉)
+		aBodyReanim->DrawRenderGroup(&aMemoryGraphics, RENDER_GROUP_NORMAL);
+
+		if (theZombie->mHelmType != HelmType::HELMTYPE_NONE && theZombie->mHelmType != HelmType::HELMTYPE_WALLNUT && theZombie->mHelmType != HelmType::HELMTYPE_TALLNUT)
+			aBodyReanim->DrawRenderGroup(&aMemoryGraphics, RENDER_GROUP_HELMET);
+
+		if (theZombie->mHelmType == HelmType::HELMTYPE_TRAFFIC_CONE || theZombie->mHelmType == HelmType::HELMTYPE_BUCKET || theZombie->mHelmType == HelmType::HELMTYPE_FOOTBALL ||
+			theZombie->mHelmType == HelmType::HELMTYPE_DIGGER || theZombie->mHelmType == HelmType::HELMTYPE_BLACK_FOOTBALL)
+			aBodyReanim->DrawRenderGroup(&aMemoryGraphics, RENDER_GROUP_OVER_HELMET);
+
+		if (theZombie->mShieldType != ShieldType::SHIELDTYPE_NONE)
+			aBodyReanim->DrawRenderGroup(&aMemoryGraphics, RENDER_GROUP_SHIELD);
+
+		if (theZombie->mShieldType == ShieldType::SHIELDTYPE_NEWSPAPER || theZombie->mShieldType == ShieldType::SHIELDTYPE_DOOR ||
+			theZombie->mShieldType == ShieldType::SHIELDTYPE_TRASHCAN || theZombie->mShieldType == ShieldType::SHIELDTYPE_LADDER)
+			aBodyReanim->DrawRenderGroup(&aMemoryGraphics, RENDER_GROUP_OVER_SHIELD);
+
+		aBodyReanim->mOverlayMatrix = aOldOverlay;
+		aBodyReanim->Update();
+	}
+
+	SDL_SetRenderTarget(LawnApp::mSDLRenderer, nullptr);
+	MemoryImage* aFull = ConvertSDL3ImageToMemoryImage(aMemoryImage);
+	if (aFull == nullptr || aFull->mBits == nullptr)
+		return aFull;
+
+	// 纹理按显示器缩放放大过, 裁回 512x512 逻辑区域(左上角)
+	MemoryImage* aLogical = aFull;
+	if (aFull->mWidth > CANVAS || aFull->mHeight > CANVAS)
+	{
+		aLogical = new MemoryImage();
+		aLogical->Create(CANVAS, CANVAS);
+		aLogical->mHasTrans = true;
+		aLogical->mHasAlpha = true;
+		unsigned long* aDst = aLogical->GetBits();
+		for (int y = 0; y < CANVAS; y++)
+			memcpy(aDst + y * CANVAS, aFull->mBits + y * aFull->mWidth, CANVAS * sizeof(unsigned long));
+		delete aFull;
+	}
+
+	// 以内容包围盒底边(脚底)为轴, 像素空间纵向压到 1/4 (上方内容平均采样压向脚底)
+	int aL, aT, aR, aB;
+	if (!GetImageContentBounds(aLogical, aL, aT, aR, aB))
+		return aLogical;
+
+	MemoryImage* aSquashed = new MemoryImage();
+	aSquashed->Create(CANVAS, CANVAS);
+	aSquashed->mHasTrans = true;
+	aSquashed->mHasAlpha = true;
+	unsigned long* aDst = aSquashed->GetBits();
+	memset(aDst, 0, CANVAS * CANVAS * sizeof(unsigned long));
+	int aSquashTop = aB - (aB - aT) / 4;
+	for (int y = aSquashTop; y <= aB; y++)
+	{
+		int aSrcBase = aT + (y - aSquashTop) * 4;
+		unsigned long* aDstRow = aDst + y * CANVAS;
+		for (int x = 0; x < CANVAS; x++)
+		{
+			unsigned int aSumA = 0, aSumR = 0, aSumG = 0, aSumB = 0;
+			for (int k = 0; k < 4; k++)
+			{
+				int aSrcY = min(aSrcBase + k, aB);
+				unsigned long aPixel = aLogical->mBits[aSrcY * CANVAS + x];
+				aSumA += (aPixel >> 24) & 0xFF;
+				aSumR += (aPixel >> 16) & 0xFF;
+				aSumG += (aPixel >> 8) & 0xFF;
+				aSumB += aPixel & 0xFF;
+			}
+			aDstRow[x] = ((aSumA / 4) << 24) | ((aSumR / 4) << 16) | ((aSumG / 4) << 8) | (aSumB / 4);
+		}
+	}
+	delete aLogical;
+	return aSquashed;
 }
 
 //0x46FDC0

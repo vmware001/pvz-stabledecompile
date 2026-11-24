@@ -295,8 +295,8 @@ void SeedPacketDrawSeed(Graphics* g, float x, float y, SeedType theSeedType, See
 		SeedType aLayoutSeedType = SeedPacketGetLayoutSeedType(theSeedType);
 		if (aLayoutSeedType == SeedType::SEED_ZOMBIE_BUNGEE)
 		{
+			// 缓存图中僵尸本体位于顶部区域, 只保留裁剪防止溢出, 不再上移
 			g->mClipRect.mY = y + theOffsetY + 10 + gSexyAppBase->mDDInterface->mWideScreenOffsetY;
-			y -= 180;
 		}
 		if (aLayoutSeedType == SeedType::SEED_ZOMBIE_POLEVAULTER)
 		{

@@ -18,6 +18,7 @@
 #include "../Sexy.TodLib/TodParticle.h"
 #include "Widget/AchievementsScreen.h"
 #include "../Sexy.TodLib/EffectSystem.h"
+#include "System/ReanimationLawn.h"
 
 ZombieDefinition gZombieDefs[NUM_ZOMBIE_TYPES] = {  //0x69DA80
     { ZOMBIE_NORMAL,            REANIM_ZOMBIE,              1,      1,      1,      4000,   _S("ZOMBIE") },
@@ -137,6 +138,9 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mTargetCol = -1;
     mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
     mZombieHeight = ZombieHeight::HEIGHT_ZOMBIE_NORMAL;
+    mSquished = false;
+    mSquishedCountdown = 0;
+    mSquishedImage = nullptr;
     mPhaseCounter = 0;
     mHitUmbrella = false;
     mDroppedLoot = false;
@@ -661,7 +665,9 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         {
             mZombiePhase = ZombiePhase::PHASE_DANCER_DANCING_IN;
             mVelX = 0.5f;
-            mPhaseCounter = 300 + Rand(12);
+            // 开局滑步固定为 2 格: 滑步由 anim_moonwalk 的 _ground 轨道驱动,
+            // 实测每逻辑帧平均约 0.66px, 242 帧恰好滑动 160px(2 个格子).
+            mPhaseCounter = 242 + Rand(8);
             PlayZombieReanim("anim_moonwalk", ReanimLoopType::REANIM_LOOP, 0, 24.0f);
         }
         mBodyHealth = 500;
@@ -1759,6 +1765,13 @@ void Zombie::UpdateZombieCatapult()
 
             if (mSummonCounter == 0)
             {
+                ReanimShowTrack("Zombie_catapult_basketball", RENDER_GROUP_HIDDEN);
+                ReanimShowTrack("Zombie_catapult_basketball2", RENDER_GROUP_HIDDEN);
+                ReanimShowTrack("Zombie_catapult_basketball3", RENDER_GROUP_HIDDEN);
+                ReanimShowTrack("Zombie_catapult_basketball4", RENDER_GROUP_HIDDEN);
+                aBodyReanim->SetImageOverride("Zombie_catapult_pole", GetBodyDamageIndex() == 2
+                    ? IMAGE_REANIM_ZOMBIE_CATAPULT_POLE_DAMAGE
+                    : IMAGE_REANIM_ZOMBIE_CATAPULT_POLE);
                 PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 20, 6.0f);
                 mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
             }
@@ -4394,6 +4407,9 @@ void Zombie::DropArm(unsigned int theDamageFlags)
 //0x52A470
 void Zombie::UpdateDamageStates(unsigned int theDamageFlags)
 {
+    if (mSquished)
+        return; // 倭瓜压扁: 不掉头/掉臂/播放倒下动画
+
     if (!CanLoseBodyParts())
         return;
 
@@ -4943,6 +4959,20 @@ void Zombie::Update()
 
     if (doUpdate)
     {
+        if (mSquished)
+        {
+            // 倭瓜压扁动画: 原地停留, 倒计时结束后移除(战利品已在死亡流程掉落)
+            if (--mSquishedCountdown <= 0)
+            {
+                mSquished = false;
+                delete mSquishedImage;
+                mSquishedImage = nullptr;
+                DieWithLoot();
+            }
+            mX = (int)mPosX;
+            mY = (int)mPosY;
+            return;
+        }
         if (mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
         {
             UpdateBurn();
@@ -7296,6 +7326,25 @@ void Zombie::Draw(Graphics* g)
     if (mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED)
         return;
 
+    if (mSquished)
+    {
+        // 倭瓜压扁动画: 图案已在快照时按脚底压扁, 用与活着时相同的 g 变换在 (-256,-256) 绘制,
+        // 与活着的僵尸逐点重合(底部对齐), 结束前淡出
+        g->PushState();
+        g->SetLinearBlend(true);
+        if (mSquishedCountdown < 60)
+        {
+            int anAlpha = ClampInt(255 * mSquishedCountdown / 10, 0, 255);
+            g->SetColorizeImages(true);
+            g->SetColor(Color(255, 255, 255, anAlpha));
+        }
+        if (mSquishedImage != nullptr)
+            g->DrawImage(mSquishedImage, -256.0f, -256.0f);
+        g->PopState();
+        return;
+    }
+
+
     ZombieDrawPosition aDrawPos;
     GetDrawPos(aDrawPos);
 
@@ -8709,6 +8758,27 @@ void Zombie::DieWithLoot()
     DropLoot();
 }
 
+// 倭瓜击杀的动画表现(不改动伤害结算): 取消倒下死亡动画, 改为压扁图案停留后消失
+void Zombie::Squish()
+{
+	if (mDead || mSquished)
+		return;
+
+	mSquished = true;
+	mSquishedCountdown = 500;
+	mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_GRAVE_STONE, mRow, 8); // 尸体在植物层, 不挡僵尸
+	StopEating();
+	StopZombieSound();
+	mApp->PlayFoley(FoleyType::FOLEY_THUMP);
+
+	// 捕获实时姿态快照(含当前防具/朝向/体型)作为压扁图案, 再冻结阶段
+	delete mSquishedImage;
+	mSquishedImage = nullptr;
+	if (mBodyReanimID != ReanimationID::REANIMATIONID_NULL)
+		mSquishedImage = mApp->mReanimatorCache->MakeSquishedZombieFrame(this);
+	mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
+}
+
 //0x530310
 void Zombie::BobsledDie()
 {
@@ -9758,6 +9828,7 @@ Zombie::~Zombie()
 {
     AttachmentDie(mAttachmentID);
     StopZombieSound();
+    delete mSquishedImage;
 }
 
 //0x531990
@@ -9815,6 +9886,11 @@ bool Zombie::CanBeFrozen()
 //0x531A80
 bool Zombie::EffectedByDamage(unsigned int theDamageRangeFlags)
 {
+    if (mSquished)
+    {
+        return false;
+    }
+
     if (!TestBit(theDamageRangeFlags, (int)DamageRangeFlags::DAMAGES_DYING) && IsDeadOrDying())
     {
         return false;

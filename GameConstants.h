@@ -202,6 +202,18 @@ struct PvzToolkitBridgeV1
 	int* plantCosts;
 	int plantCostStride;
 	int* nextIzFormation;
+	int plantCount;
+	int plantType[96];
+	int plantRow[96];
+	int plantCol[96];
+	int plantImitater[96];
+	int plantAwake[96];
+	int gridItemCount;
+	int gridItemType[96];
+	int gridItemRow[96];
+	int gridItemCol[96];
+	int packetDisplayType[15];
+	int packetCost[15];
 };
 
 extern PvzToolkitBridgeV1 gPvzToolkitBridge;

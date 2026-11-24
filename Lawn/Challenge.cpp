@@ -4915,7 +4915,8 @@ void Challenge::IZombieSetupPlant(Plant* thePlant)
 //0x42A660
 void Challenge::IZombiePlacePlantInSquare(SeedType theSeedType, int theGridX, int theGridY)
 {
-	if (mBoard->CanPlantAt(theGridX, theGridY, theSeedType) == PLANTING_OK)
+	// 与修改器"随意放置"作弊无关: 布阵落点必须实际空闲 (CanPlantAt 会被作弊绕过)
+	if (mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
 	{
 		IZombieSetupPlant(mBoard->NewPlant(theGridX, theGridY, theSeedType));
 	}
@@ -4957,7 +4958,12 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 		for (int aCol = 0; aCol < aColumns; aCol++)
 		{
 			// 当且仅当格子内可以种植目标植物时
-			if (mBoard->CanPlantAt(aCol, aRow, theSeedType) == PLANTING_OK)
+			// 注意: 不能用 CanPlantAt —— 修改器"随意放置"作弊会绕过它, 导致布阵挑中已占用格,
+			// 产生重叠植物与空位; 这里必须直接按实际占用检查
+			GridSquareType aSq = mBoard->mGridSquareType[aCol][aRow];
+			bool aFree = aSq != GridSquareType::GRIDSQUARE_NONE && aSq != GridSquareType::GRIDSQUARE_DIRT &&
+				mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr;
+			if (aFree)
 			{
 				// 坚果和火炬树桩只会出现在靠右侧的 3 列
 				if ((theSeedType != SEED_WALLNUT && theSeedType != SEED_TORCHWOOD) || aColumns - aCol <= 3)
@@ -5022,6 +5028,8 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	int aRows[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
 	int aPlantCount = 0;
 	bool aGloomshroomReplaced = false;
+	int aPiercingGloomshroomCount = 0;
+	int aCattailCount = 0;
 	Plant* aPlant = nullptr;
 	while (mBoard->IteratePlants(aPlant))
 	{
@@ -5037,33 +5045,40 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				else if (aHit < 60)
 					aNewType = SEED_CACTUS;
 			}
-			else if (aOldType == SEED_FUMESHROOM && !aGloomshroomReplaced && Rand(100) < 50)
+			else if (aOldType == SEED_FUMESHROOM && !aGloomshroomReplaced && Rand(3) == 0)
 			{
 				aNewType = SEED_GLOOMSHROOM;
 				aGloomshroomReplaced = true;
 			}
-			else if (aOldType == SEED_MAGNETSHROOM && Rand(100) < 50)
-				aNewType = SEED_HYPNOSHROOM;
 
 			if (mSurvivalStage >= 10)
 			{
 				if (aOldType == SEED_REPEATER && Rand(100) < 20)
 					aNewType = SEED_GATLINGPEA;
-				else if (aOldType == SEED_KERNELPULT && Rand(100) < 20)
+				else if (aOldType == SEED_KERNELPULT && Rand(3) == 0)
 					aNewType = SEED_MELONPULT;
 			}
 		}
 		else if (theFormationType == 0)
 		{
-			if (aOldType == SEED_REPEATER && Rand(100) < 20)
+			if (aOldType == SEED_REPEATER && Rand(100) < 30)
 				aNewType = SEED_GATLINGPEA;
-			else if (aOldType == SEED_PEASHOOTER && Rand(100) < 50)
-				aNewType = SEED_CACTUS;
+			else if (aOldType == SEED_SPLITPEA && aCattailCount < 1 && Rand(100) < 50)
+			{
+				aNewType = SEED_CATTAIL;
+				aCattailCount++;
+			}
 		}
-		else if (theFormationType == 3 && aOldType == SEED_FUMESHROOM && Rand(100) < 20)
+		else if (theFormationType == 3 && aOldType == SEED_FUMESHROOM && aPiercingGloomshroomCount < 2 && Rand(100) < 30)
+		{
 			aNewType = SEED_GLOOMSHROOM;
+			aPiercingGloomshroomCount++;
+		}
 
-		if (!theSpecialFormation && theFormationType == 5 && aOldType == SEED_CHOMPER && Rand(100) < 20)
+		if (aOldType == SEED_MAGNETSHROOM && Rand(100) < 50)
+			aNewType = SEED_HYPNOSHROOM;
+
+		if (!theSpecialFormation && theFormationType == 5 && aOldType == SEED_CHOMPER && Rand(100) < 30)
 			aNewType = SEED_HYPNOSHROOM;
 
 		aPlants[aPlantCount] = aPlant;
@@ -5089,18 +5104,22 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		if (aOldTypes[i] != SEED_TORCHWOOD)
 			continue;
 		Plant* aTorch = aPlants[i];
-		bool aValidTorch = false;
+		int aTorchScore = 0;
 		Plant* aOtherPlant = nullptr;
 		while (mBoard->IteratePlants(aOtherPlant))
 		{
-			if (aOtherPlant->mRow == aTorch->mRow && aOtherPlant->mPlantCol < aTorch->mPlantCol &&
-				(aOtherPlant->mSeedType == SEED_PEASHOOTER || aOtherPlant->mSeedType == SEED_REPEATER || aOtherPlant->mSeedType == SEED_GATLINGPEA))
+			if (aOtherPlant->mRow != aTorch->mRow || aOtherPlant->mPlantCol >= aTorch->mPlantCol)
+				continue;
+			switch (aOtherPlant->mSeedType)
 			{
-				aValidTorch = true;
-				break;
+			case SEED_PEASHOOTER:
+			case SEED_SPLITPEA:		aTorchScore += 1; break;
+			case SEED_REPEATER:		aTorchScore += 2; break;
+			case SEED_GATLINGPEA:	aTorchScore += 4; break;
+			case SEED_SNOWPEA:		aTorchScore -= 1; break;
 			}
 		}
-		if (aValidTorch)
+		if (aTorchScore > 0)
 			continue;
 
 		SeedType aCandidates[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
@@ -5126,11 +5145,15 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 
 	if (!theSpecialFormation && mSurvivalStage >= 10)
 	{
-		for (int i = 0; i < aPlantCount; i++)
+		int aPumpkinCount = 0;
+		for (int i = 0; i < aPlantCount && aPumpkinCount < 2; i++)
 		{
 			Plant* aBasePlant = mBoard->GetTopPlantAt(aCols[i], aRows[i], PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
 			if (aBasePlant != nullptr && IZombieIsOutputPlant(aBasePlant->mSeedType) && Rand(100) < 5)
+			{
 				IZombieSetupPlant(mBoard->NewPlant(aCols[i], aRows[i], SEED_PUMPKINSHELL));
+				aPumpkinCount++;
+			}
 		}
 	}
 
@@ -5300,6 +5323,7 @@ void Challenge::IZombieInitLevel()
 		break;
 	case GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED:
+	case GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS:
 	{
 		if (mSurvivalStage == 10) // @Patoke: add achievement
@@ -5322,7 +5346,7 @@ void Challenge::IZombieInitLevel()
 		{
 			aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 5), ClampInt(3 + mSurvivalStage / 2, 2, 7));
 		}
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
 			aPuffshroomCount = min(aPuffshroomCount, 5);
 		int aSunflowerCount = 8 - aPuffshroomCount;
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
@@ -5402,7 +5426,7 @@ void Challenge::IZombieInitLevel()
 				break;
 			}
 		}
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
 			IZombieStrengthenPlants(aSpecialFormation, aFormationType);
 		break;
 	}
