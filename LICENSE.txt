@@ -1,6 +1,9 @@
 MIT License
 
-Copyright (c) [year] [fullname]
+Copyright (c) 2026 admin (vmware001)
+
+本仓库为植物大战僵尸 GOTY 改版(IZ增强版)的修改源代码,
+基于 InLiothixi/stabledecompile 反编译工程, 以 MIT 许可证开放。
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
