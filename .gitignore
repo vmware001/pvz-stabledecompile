@@ -2,4 +2,9 @@
 enc_temp_folder/*
 build/*
 Plants Vs. Zombies/*
+!Plants Vs. Zombies/main.pak
+!Plants Vs. Zombies/dependency.pak
+!Plants Vs. Zombies/videos
+Plants Vs. Zombies/main.pak.bak
+Plants Vs. Zombies/dependency.pak.bak
 bin/*
