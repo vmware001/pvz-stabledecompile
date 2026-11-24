@@ -8766,7 +8766,24 @@ void Zombie::Squish()
 
 	mSquished = true;
 	mSquishedCountdown = 500;
-	mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_GRAVE_STONE, mRow, 8); // 尸体在植物层, 不挡僵尸
+	// 尸体默认渲染在植物层之下(墓碑层); 但尸体水平跨约两格, 任何一格是地刺/地刺王时,
+	// 它们会盖住尸体, 此时抬到僵尸层最底(仍在行走僵尸之前), 保证压扁图案可见
+	RenderLayer aCorpseLayer = RenderLayer::RENDER_LAYER_GRAVE_STONE;
+	int aCorpseLayerOffset = 8;
+	int aGridX = mBoard->PixelToGridXKeepOnBoard(mPosX, mPosY);
+	for (int aCol = aGridX - 1; aCol <= aGridX + 2; aCol++)
+	{
+		PlantsOnLawn aPlantsOnLawn;
+		mBoard->GetPlantsOnLawn(aCol, mRow, &aPlantsOnLawn);
+		if (aPlantsOnLawn.mNormalPlant != nullptr &&
+			(aPlantsOnLawn.mNormalPlant->mSeedType == SeedType::SEED_SPIKEWEED || aPlantsOnLawn.mNormalPlant->mSeedType == SeedType::SEED_SPIKEROCK))
+		{
+			aCorpseLayer = RenderLayer::RENDER_LAYER_ZOMBIE;
+			aCorpseLayerOffset = 0;
+			break;
+		}
+	}
+	mRenderOrder = Board::MakeRenderOrder(aCorpseLayer, mRow, aCorpseLayerOffset);
 	StopEating();
 	StopZombieSound();
 	mApp->PlayFoley(FoleyType::FOLEY_THUMP);
