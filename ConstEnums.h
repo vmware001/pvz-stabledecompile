@@ -238,7 +238,8 @@ enum DamageFlags
     DAMAGE_DOESNT_LEAVE_BODY = 4,
     DAMAGE_SPIKE = 5,
     DAMAGE_LOBBED = 6,
-    DAMAGE_NO_ARMOR_PARTICLES = 7
+    DAMAGE_NO_ARMOR_PARTICLES = 7,
+    DAMAGE_SQUISH_ON_HIT = 8
 };
 enum DamageRangeFlags
 {

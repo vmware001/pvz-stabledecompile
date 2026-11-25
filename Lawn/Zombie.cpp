@@ -190,6 +190,8 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mBodyHealth = 270;
     mHeadParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
     mSquashHeadColumn = -1;
+    mSquashHeadZombieID = ZombieID::ZOMBIEID_NULL;
+    mSquashHeadLandX = -1;
 
     mIsAllergicToNuts = false;
     mZombatarTidbitID = ReanimationID::REANIMATIONID_NULL;
@@ -2369,18 +2371,38 @@ void Zombie::UpdateZombieGargantuar()
         Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
         if (aBodyReanim->ShouldTriggerTimedEvent(0.64f))
         {
-            if (mMindControlled)  // 魅惑巨人砸僵尸
+            Zombie* aZombieTarget = FindZombieTarget();
+            Plant* aPlant = (!aZombieTarget && !mMindControlled) ? FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW) : nullptr;
+            int aTargetColumn = aZombieTarget ? mBoard->PixelToGridXKeepOnBoard(aZombieTarget->mX + 40, aZombieTarget->mY) :
+                (aPlant ? aPlant->mPlantCol : -1);
+            bool aHitZombie = false;
+            if (aTargetColumn != -1)
             {
-                Zombie* aZombie = FindZombieTarget();
-                if (aZombie)
+                int aDamage = mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ? 1800 : 1000;
+                unsigned int aDamageRangeFlags = 13U | (mMindControlled ? 0U : (1U << DamageRangeFlags::DAMAGES_ONLY_MINDCONTROLLED));
+                Zombie* aZombie = nullptr;
+                while (mBoard->IterateZombies(aZombie))
                 {
-                    int aDamage = mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ? 1000 : 500;
-                    aZombie->TakeDamage(aDamage, 0U);
+                    if (aZombie->mRow == mRow && mBoard->PixelToGridXKeepOnBoard(aZombie->mX + 40, aZombie->mY) == aTargetColumn &&
+                        aZombie->EffectedByDamage(aDamageRangeFlags))
+                    {
+                        // 只有这一击足以打死时才压扁, 否则只结算伤害(血量高于锤击伤害的僵尸不会被一击压扁)
+                        int aTotalHealth = aZombie->mBodyHealth;
+                        if (aZombie->mShieldHealth > 0)
+                            aTotalHealth += aZombie->mShieldHealth;
+                        if (aZombie->mHelmHealth > 0)
+                            aTotalHealth += aZombie->mHelmHealth;
+                        if (aZombie->IsFlying() && aZombie->mFlyingHealth > 0)
+                            aTotalHealth += aZombie->mFlyingHealth;
+                        unsigned int aZombieDamageFlags = aTotalHealth <= aDamage ? (1U << DamageFlags::DAMAGE_SQUISH_ON_HIT) : 0U;
+                        aZombie->TakeDamage(aDamage, aZombieDamageFlags);
+                        aHitZombie = true;
+                    }
                 }
             }
-            else
+
+            if (!aHitZombie && !mMindControlled)
             {
-                Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
                 if (aPlant)
                 {
                     if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
@@ -2523,12 +2545,8 @@ void Zombie::UpdateZombieGargantuar()
         return;
     }
 
-    bool doSmash = false;
-    if (mMindControlled)
-    {
-        doSmash = FindZombieTarget();
-    }
-    else
+    bool doSmash = FindZombieTarget() != nullptr;
+    if (!doSmash && !mMindControlled)
     {
         if (FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW))
         {
@@ -2831,41 +2849,53 @@ void Zombie::UpdateZombieSquashHead()
 
         mZombiePhase = ZombiePhase::PHASE_SQUASH_RISING;
         mPhaseCounter = 95;
+        mSquashHeadZombieID = ZombieID::ZOMBIEID_NULL;
+        mSquashHeadLandX = -1;
     }
 
     if (mZombiePhase == ZombiePhase::PHASE_SQUASH_RISING)
     {
         int aDestX = mBoard->GridToPixelX(mBoard->PixelToGridXKeepOnBoard(mX, mY), mRow);
-        if (mMindControlled)
+        if (mSquashHeadColumn == -1)
         {
-            Zombie* aZombie = FindZombieTarget();
-            if (aZombie)
+            Plant* aPlant = mMindControlled ? nullptr : FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
+            Zombie* aZombieTarget = FindZombieTarget();
+            if (aZombieTarget)
             {
-                aDestX = aZombie->ZombieTargetLeadX(0.0f);
+                mSquashHeadColumn = mBoard->PixelToGridXKeepOnBoard(aZombieTarget->ZombieTargetLeadX(0.0f), mY);
+                mSquashHeadZombieID = mBoard->ZombieGetID(aZombieTarget);
             }
-            else
-            {
-                aDestX += 90.0f * mScaleZombie;
-            }
-        }
-        else
-        {
-            if (mSquashHeadColumn == -1)
-            {
-                Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
-                if (aPlant)
-                {
-                    mSquashHeadColumn = aPlant->mPlantCol;
-                }
-                aDestX = mBoard->GridToPixelX(mSquashHeadColumn, mRow);
-            }
-            else
-            {
-                aDestX = mBoard->GridToPixelX(mSquashHeadColumn, mRow);
-            }
+            else if (aPlant)
+                mSquashHeadColumn = aPlant->mPlantCol;
+            else if (mMindControlled)
+                mSquashHeadColumn = mBoard->PixelToGridXKeepOnBoard(aDestX + 90.0f * mScaleZombie, mY);
         }
 
-        int aPosX = TodAnimateCurve(50, 20, mPhaseCounter, 0, aDestX - 20 - mPosX, TodCurves::CURVE_EASE_IN_OUT);
+        // 被锁定的僵尸在起跳期间仍在移动: 预判它到达落点那一刻的位置, 落点一次算准, 下落时不再左右平移
+        Zombie* aTrackedZombie = mSquashHeadZombieID != ZombieID::ZOMBIEID_NULL ? mBoard->ZombieTryToGet(mSquashHeadZombieID) : nullptr;
+        if (aTrackedZombie && (aTrackedZombie->IsDeadOrDying() || aTrackedZombie->mSquished))
+            aTrackedZombie = nullptr;
+        if (aTrackedZombie)
+        {
+            // mPhaseCounter: 起跳剩余帧; 落下开始到命中约 8 帧
+            int aFramesToImpact = mPhaseCounter + 8;
+            aDestX = (int)aTrackedZombie->ZombieTargetLeadX((float)aFramesToImpact);
+            mSquashHeadLandX = aDestX;
+            mSquashHeadColumn = mBoard->PixelToGridXKeepOnBoard((float)aDestX, mY);
+        }
+        else if (mSquashHeadLandX != -1)
+        {
+            aDestX = mSquashHeadLandX;
+        }
+        else if (mSquashHeadColumn != -1)
+        {
+            aDestX = mBoard->GridToPixelX(mSquashHeadColumn, mRow);
+            mSquashHeadLandX = aDestX;
+        }
+
+        // 只有锁定僵尸时, 落点整体左移半格(40px): 头部图案中心相对僵尸偏右; 砸植物的落点保持原样
+        int aAimOffsetX = mSquashHeadZombieID != ZombieID::ZOMBIEID_NULL ? -40 : 0;
+        int aPosX = TodAnimateCurve(50, 20, mPhaseCounter, 0, aDestX - 20 - mPosX + aAimOffsetX, TodCurves::CURVE_EASE_IN_OUT);
         int aPosY = TodAnimateCurve(50, 20, mPhaseCounter, 0, -20, TodCurves::CURVE_EASE_IN_OUT);
 
         Reanimation* aHeadReanim = mApp->ReanimationGet(mSpecialHeadReanimID);
@@ -2883,58 +2913,60 @@ void Zombie::UpdateZombieSquashHead()
     if (mZombiePhase == ZombiePhase::PHASE_SQUASH_FALLING)
     {
         int aPosY = TodAnimateCurve(10, 0, mPhaseCounter, -20, 74, TodCurves::CURVE_LINEAR);
-        int aDestX = mBoard->GridToPixelX(mBoard->PixelToGridXKeepOnBoard(mX, mY), mRow);
-        if (mMindControlled)
-        {
-            Zombie* aZombie = FindZombieTarget();
-            if (aZombie)
-            {
-                aDestX = aZombie->ZombieTargetLeadX(0.0f);
-            }
-            else
-            {
-                aDestX += 90.0f * mScaleZombie;
-            }
-        }
-        else
+        // 落点已由起跳阶段预判固定, 下落是一条垂直线
+        int aDestX = mSquashHeadLandX != -1
+            ? mSquashHeadLandX
+            : mBoard->GridToPixelX(mBoard->PixelToGridXKeepOnBoard(mX, mY), mRow);
+        if (mSquashHeadLandX == -1)
         {
             if (mSquashHeadColumn != -1)
-            {
                 aDestX = mBoard->GridToPixelX(mSquashHeadColumn, mRow);
-            }
+            else if (mMindControlled)
+                aDestX += 90.0f * mScaleZombie;
         }
+
+        // 命中判定仍按目标实时所在列, 预判误差不会导致砸空
+        Zombie* aTrackedZombie = mSquashHeadZombieID != ZombieID::ZOMBIEID_NULL ? mBoard->ZombieTryToGet(mSquashHeadZombieID) : nullptr;
+        if (aTrackedZombie && !aTrackedZombie->IsDeadOrDying() && !aTrackedZombie->mSquished)
+            mSquashHeadColumn = mBoard->PixelToGridXKeepOnBoard(aTrackedZombie->ZombieTargetLeadX(0.0f), mY);
 
         Reanimation* aHeadReanim = mApp->ReanimationGet(mSpecialHeadReanimID);
 
-        float squashX = mPosX + 6.0f + aDestX - 20 - mPosX;
+        // 只有锁定僵尸时落点左移半格, 与起跳终点保持一致; 砸植物的落点不变
+        int aAimOffsetX = mSquashHeadZombieID != ZombieID::ZOMBIEID_NULL ? -40 : 0;
+        float squashX = mPosX + 6.0f + aDestX - 20 - mPosX + aAimOffsetX;
         aHeadReanim->SetPosition(squashX, mPosY - 21.0f + aPosY);
         
         if (mPhaseCounter == 2)
         {
-            if (mMindControlled)  // 魅惑修复Di
+            int aTargetColumn = mSquashHeadColumn == -1 ? mBoard->PixelToGridXKeepOnBoard(aDestX + 40, mY) : mSquashHeadColumn;
+            unsigned int aDamageRangeFlags = 13U | (mMindControlled ? 0U : (1U << DamageRangeFlags::DAMAGES_ONLY_MINDCONTROLLED));
+            bool aHasZombieTarget = false;
+            if (!mMindControlled)
             {
-                Rect aAttackRect(aDestX + 20 - 73, mPosY + 4, 65, 90);  // 具体数值未实测，待定
-
                 Zombie* aZombie = nullptr;
                 while (mBoard->IterateZombies(aZombie))
                 {
-                    if ((aZombie->mRow == mRow || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) && aZombie->EffectedByDamage(13U))
+                    if (aZombie->mRow == mRow && mBoard->PixelToGridXKeepOnBoard(aZombie->ZombieTargetLeadX(0.0f), aZombie->mY) == aTargetColumn && aZombie->EffectedByDamage(aDamageRangeFlags))
                     {
-                        Rect aZombieRect = aZombie->GetZombieRect();
-                        if (GetRectOverlap(aAttackRect, aZombieRect) > ((aZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL 
-                        #ifdef _HAS_NEW_GIGA_ZOMBIES
-                            || aZombie->mZombieType == ZombieType::ZOMBIE_BLACK_FOOTBALL
-                        #endif
-                            ) ? -20 : 0))
-                        {
-                            aZombie->TakeDamage(1800, 18U);
-                        }
+                        aHasZombieTarget = true;
+                        break;
                     }
+                }
+            }
+
+            if (mMindControlled || aHasZombieTarget)
+            {
+                Zombie* aZombie = nullptr;
+                while (mBoard->IterateZombies(aZombie))
+                {
+                    if (aZombie->mRow == mRow && mBoard->PixelToGridXKeepOnBoard(aZombie->ZombieTargetLeadX(0.0f), aZombie->mY) == aTargetColumn && aZombie->EffectedByDamage(aDamageRangeFlags))
+                        aZombie->TakeDamage(1800, 18U | (1U << DamageFlags::DAMAGE_SQUISH_ON_HIT));
                 }
             }
             else
             {
-                SquishAllInSquare(mBoard->PixelToGridXKeepOnBoard(squashX + 20, mY), mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                SquishAllInSquare(aTargetColumn, mRow, ZombieAttackType::ATTACKTYPE_CHEW);
             }
         }
 
@@ -2942,6 +2974,8 @@ void Zombie::UpdateZombieSquashHead()
         {
             mZombiePhase = ZombiePhase::PHASE_SQUASH_DONE_FALLING;
             mPhaseCounter = 100;
+            mSquashHeadZombieID = ZombieID::ZOMBIEID_NULL;
+            mSquashHeadLandX = -1;
 
             mBoard->ShakeBoard(1, 4);
             mApp->PlayFoley(FoleyType::FOLEY_THUMP);
@@ -4599,6 +4633,37 @@ void Zombie::UpdateZamboni()
     }
 }
 
+// 冰车/投篮车碾过被魅惑的僵尸: 车身与僵尸重叠约半格时才压扁, 在此之前魅惑僵尸照常啃车
+void Zombie::CrushCharmedZombies()
+{
+    const int VEHICLE_CRUSH_OVERLAP = 40;
+
+    if (mMindControlled || IsDeadOrDying() || mSquished)
+        return;
+
+    Rect aVehicleRect = GetZombieRect();
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        if (aZombie->mRow != mRow || !aZombie->mMindControlled || aZombie->mSquished || aZombie->IsDeadOrDying())
+            continue;
+
+        Rect aZombieRect = aZombie->GetZombieRect();
+        int aOverlapX = min(aVehicleRect.mX + aVehicleRect.mWidth, aZombieRect.mX + aZombieRect.mWidth) - max(aVehicleRect.mX, aZombieRect.mX);
+        if (aOverlapX < VEHICLE_CRUSH_OVERLAP)
+            continue;
+
+        aZombie->TakeDamage(1800, 18U | (1U << DamageFlags::DAMAGE_SQUISH_ON_HIT));
+        if (!aZombie->mSquished)
+            continue;
+
+        // 额外播放小推车压过的效果(尘土 + 云团), 压扁尸体仍由 Squish 生成, 不替换
+        Reanimation* aPuffReanim = mApp->AddReanimation(aZombie->mPosX - 73.0f, aZombie->mPosY - 56.0f, aZombie->mRenderOrder + 2, ReanimationType::REANIM_PUFF);
+        aPuffReanim->SetFramesForLayer("anim_puff");
+        mApp->AddTodParticle(aZombie->mPosX + 110.0f, aZombie->mPosY, aZombie->mRenderOrder + 1, ParticleEffect::PARTICLE_MOWER_CLOUD);
+    }
+}
+
 //0x52A8E0
 void Zombie::UpdateYeti()
 {
@@ -5165,6 +5230,10 @@ void Zombie::UpdateActions()
     if (mZombieType == ZombieType::ZOMBIE_ZAMBONI)
     {
         UpdateZamboni();
+    }
+    if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_CATAPULT)
+    {
+        CrushCharmedZombies();
     }
     if (mZombieType == ZombieType::ZOMBIE_LADDER)
     {
@@ -7635,6 +7704,7 @@ Zombie* Zombie::FindZombieTarget()
             aZombie->mZombiePhase != ZombiePhase::PHASE_BUNGEE_RISING && 
             aZombie->mZombieHeight != ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED && 
             !aZombie->IsDeadOrDying() && 
+            !aZombie->mSquished &&
             aZombie->mRow == mRow)
         {
             if (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS && aZombie->mZombiePhase != ZombiePhase::PHASE_BOSS_IDLE) {
@@ -9794,6 +9864,11 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
     {
         aDamageRemaining = TakeFlyingDamage(aDamageRemaining, theDamageFlags);
     }
+    bool aCanFlatten = mZombieType != ZombieType::ZOMBIE_GARGANTUAR && mZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR &&
+        mZombieType != ZombieType::ZOMBIE_ZAMBONI && mZombieType != ZombieType::ZOMBIE_CATAPULT && mZombieType != ZombieType::ZOMBIE_BOSS &&
+        !IsBobsledTeamWithSled() && !IsFlying();
+    if (aCanFlatten && TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_SQUISH_ON_HIT) && !mSquished && !IsDeadOrDying())
+        Squish();
     if (aDamageRemaining > 0 && mShieldType != ShieldType::SHIELDTYPE_NONE && !TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_BYPASSES_SHIELD))
     {
         aDamageRemaining = TakeShieldDamage(aDamageRemaining, aArmorDamageFlags);
@@ -10879,7 +10954,7 @@ void Zombie::PlayDeathAnim(unsigned int theDamageFlags)
         mYuckyFaceCounter = 0;
     }
 
-    if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_DOESNT_LEAVE_BODY))
+    if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_DOESNT_LEAVE_BODY) && !mSquished)
     {
         if (mZombieType != ZombieType::ZOMBIE_BOSS && mZombieType != ZombieType::ZOMBIE_GARGANTUAR && mZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
         {

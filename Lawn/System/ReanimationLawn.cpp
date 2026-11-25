@@ -821,7 +821,10 @@ MemoryImage* ReanimatorCache::MakeSquishedZombieFrame(Zombie* theZombie)
 
 	MemoryImage* aMemoryImage = MakeBlankSDL3Image(CANVAS, CANVAS);
 	if (g_SDLCacheBroken)
-		return aMemoryImage;
+	{
+		delete aMemoryImage;
+		return nullptr;
+	}
 
 	SDL_SetRenderTarget(LawnApp::mSDLRenderer, (SDL_Texture*)aMemoryImage->mD3DData);
 	SDL_SetRenderDrawColor(LawnApp::mSDLRenderer, 0, 0, 0, SDL_ALPHA_TRANSPARENT);

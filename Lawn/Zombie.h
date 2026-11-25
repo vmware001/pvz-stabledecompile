@@ -177,6 +177,8 @@ public:
     FilterEffect                    mButterFilterEffect;
     ParticleSystemID                mHeadParticleID;
     int                             mSquashHeadColumn;
+    ZombieID                        mSquashHeadZombieID;   // 倭瓜僵尸锁定的魅惑僵尸, 起跳期间预判其落点
+    int                             mSquashHeadLandX;      // 预判固定下来的落点像素, 下落时垂直落下
     bool                            mIsAllergicToNuts;
     ReanimationID                   mZombatarTidbitID;
     ReanimationID                   mZombatarHairID;
@@ -348,6 +350,7 @@ public:
     bool                            SetupDrawZombieWon(Graphics* g);
     void                            WalkIntoHouse();
     void                            UpdateZamboni();
+    void                            CrushCharmedZombies();
     void                            UpdateZombieChimney();
     void                            UpdateLadder();
     void                            DropArm(unsigned int theDamageFlags);

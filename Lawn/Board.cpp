@@ -3419,7 +3419,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	{
 		return PlantingReason::PLANTING_NOT_ON_CRATER;
 	}
-	if (GetScaryPotAt(theGridX, theGridY) || IsIceAt(theGridX, theGridY))
+	if (GetScaryPotAt(theGridX, theGridY))
 	{
 		return PlantingReason::PLANTING_NOT_HERE;
 	}

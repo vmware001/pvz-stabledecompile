@@ -4916,7 +4916,8 @@ void Challenge::IZombieSetupPlant(Plant* thePlant)
 void Challenge::IZombiePlacePlantInSquare(SeedType theSeedType, int theGridX, int theGridY)
 {
 	// 与修改器"随意放置"作弊无关: 布阵落点必须实际空闲 (CanPlantAt 会被作弊绕过)
-	if (mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
+	if (!mBoard->IsIceAt(theGridX, theGridY) &&
+		mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
 	{
 		IZombieSetupPlant(mBoard->NewPlant(theGridX, theGridY, theSeedType));
 	}
@@ -4962,6 +4963,7 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 			// 产生重叠植物与空位; 这里必须直接按实际占用检查
 			GridSquareType aSq = mBoard->mGridSquareType[aCol][aRow];
 			bool aFree = aSq != GridSquareType::GRIDSQUARE_NONE && aSq != GridSquareType::GRIDSQUARE_DIRT &&
+				!mBoard->IsIceAt(aCol, aRow) &&
 				mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr;
 			if (aFree)
 			{
@@ -5225,7 +5227,8 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			{
 				for (int aCol = 0; aCol < 5; aCol++)
 				{
-					if (aOccupied[aCol][aRow] || mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
+					if (aOccupied[aCol][aRow] || mBoard->IsIceAt(aCol, aRow) ||
+						mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
 						continue;
 					aPlant->mPlantCol = aCol;
 					aPlant->mRow = aRow;
