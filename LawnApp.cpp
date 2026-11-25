@@ -118,7 +118,7 @@ static void PvzToolkitBridgeUpdate()
 	}
 	gPvzToolkitBridge.scene = aBoard != nullptr ? (int*)&aBoard->mBackground : nullptr;
 	bool aUseIZombieCosts = gLawnApp != nullptr && gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode);
-	gPvzToolkitBridge.plantCosts = aUseIZombieCosts ? gIZombiePlantCosts : &gPlantDefs[0].mSeedCost;
+	gPvzToolkitBridge.plantCosts = aUseIZombieCosts ? GetIZombiePlantCosts(gLawnApp->mGameMode) : &gPlantDefs[0].mSeedCost;
 	gPvzToolkitBridge.plantCostStride = aUseIZombieCosts ? sizeof(int) : sizeof(PlantDefinition);
 	gPvzToolkitBridge.nextIzFormation = &gIZombieNextFormation;
 
@@ -226,8 +226,12 @@ static void PvzToolkitBridgeUpdate()
 		switch (aCode)
 		{
 		case 1: // 种植物: a=row, b=col, c=type, d=imitater
-			aBoard->NewPlant(aB, aA, (SeedType)aC, aD ? (SeedType)aC : SeedType::SEED_NONE);
+		{
+			Plant* aPlant = aBoard->NewPlant(aB, aA, (SeedType)aC, aD ? (SeedType)aC : SeedType::SEED_NONE);
+			if (aPlant != nullptr && gLawnApp->IsIZombieLevel() && aBoard->mChallenge != nullptr)
+				aBoard->mChallenge->IZombieSetupPlant(aPlant);
 			break;
+		}
 		case 2: // 放僵尸: a=row, b=col, c=type
 		{
 			Zombie* aZombie = aBoard->AddZombieInRow((ZombieType)aC, aA, 0);
@@ -299,6 +303,8 @@ static void PvzToolkitBridgeUpdate()
 		case 14: // 在指定格放置植物: a=列 b=行 c=植物类型
 		{
 			Plant* aPlant = aBoard->NewPlant(aA, aB, (SeedType)aC, SeedType::SEED_NONE);
+			if (aPlant != nullptr && gLawnApp->IsIZombieLevel() && aBoard->mChallenge != nullptr)
+				aBoard->mChallenge->IZombieSetupPlant(aPlant);
 			if (aPlant != nullptr && aPlant->mIsAsleep)
 				aPlant->SetSleeping(false);
 			break;
@@ -2623,10 +2629,8 @@ bool LawnApp::DebugKeyDown(int theKey)
 //0x4522E0
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
-#ifdef _DEBUG
 	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced")
 		return;
-#endif
 	if (theParamName == "-tod")
 	{
 #ifdef _DEBUG

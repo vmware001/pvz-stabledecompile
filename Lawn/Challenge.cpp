@@ -4965,8 +4965,12 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 				mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr;
 			if (aFree)
 			{
-				// 坚果和火炬树桩只会出现在靠右侧的 3 列
-				if ((theSeedType != SEED_WALLNUT && theSeedType != SEED_TORCHWOOD) || aColumns - aCol <= 3)
+				// 坚果和火炬树桩只会出现在靠右侧的 3 列；强化和增强模式的裂荚射手不会出现在首列
+				bool aRestrictSplitPea = (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
+					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && theSeedType == SEED_SPLITPEA;
+				if ((!aRestrictSplitPea && theSeedType != SEED_WALLNUT && theSeedType != SEED_TORCHWOOD) ||
+					(aRestrictSplitPea && aCol > 0) ||
+					((theSeedType == SEED_WALLNUT || theSeedType == SEED_TORCHWOOD) && aColumns - aCol <= 3))
 				{
 					aGridArray.push_back({ aCol, aRow, 1 });
 				}
@@ -5055,8 +5059,6 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			{
 				if (aOldType == SEED_REPEATER && Rand(100) < 20)
 					aNewType = SEED_GATLINGPEA;
-				else if (aOldType == SEED_KERNELPULT && Rand(3) == 0)
-					aNewType = SEED_MELONPULT;
 			}
 		}
 		else if (theFormationType == 0)
@@ -5073,6 +5075,23 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		{
 			aNewType = SEED_GLOOMSHROOM;
 			aPiercingGloomshroomCount++;
+		}
+
+		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && mSurvivalStage >= 10)
+		{
+			if (aOldType == SEED_UMBRELLA && Rand(100) < 50)
+				aNewType = SEED_HYPNOSHROOM;
+			else if (aOldType == SEED_KERNELPULT && Rand(100) < 50)
+				aNewType = SEED_MELONPULT;
+			else if (aOldType == SEED_WALLNUT && Rand(100) < 50)
+				aNewType = SEED_TALLNUT;
+		}
+		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && mSurvivalStage >= 20)
+		{
+			if (aNewType == SEED_MELONPULT && Rand(100) < 20)
+				aNewType = SEED_WINTERMELON;
+			else if (aOldType == SEED_SPIKEWEED && Rand(100) < 25)
+				aNewType = SEED_SPIKEROCK;
 		}
 
 		if (aOldType == SEED_MAGNETSHROOM && Rand(100) < 50)
@@ -5099,25 +5118,61 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		IZombieSetupPlant(aPlants[i]);
 	}
 
+	int aTorchRows[MAX_GRID_SIZE_Y] = {};
+	if (theSpecialFormation && theFormationType == 0)
+	{
+		for (int i = 0; i < aPlantCount; i++)
+		{
+			if (aOldTypes[i] == SEED_TORCHWOOD)
+				aTorchRows[aRows[i]]++;
+		}
+	}
 	for (int i = 0; i < aPlantCount; i++)
 	{
-		if (aOldTypes[i] != SEED_TORCHWOOD)
+		bool aReplaceWithTorchwood = theSpecialFormation && theFormationType == 0 && aCols[i] >= 3 && aCols[i] <= 4 && aTorchRows[aRows[i]] == 0 && Rand(100) < 25;
+		if (aOldTypes[i] != SEED_TORCHWOOD && !aReplaceWithTorchwood)
 			continue;
 		Plant* aTorch = aPlants[i];
 		int aTorchScore = 0;
 		Plant* aOtherPlant = nullptr;
 		while (mBoard->IteratePlants(aOtherPlant))
 		{
-			if (aOtherPlant->mRow != aTorch->mRow || aOtherPlant->mPlantCol >= aTorch->mPlantCol)
+			if (aOtherPlant->mRow != aTorch->mRow &&
+					!(aOtherPlant->mSeedType == SEED_THREEPEATER &&
+					(aOtherPlant->mRow == aTorch->mRow - 1 || aOtherPlant->mRow == aTorch->mRow + 1) &&
+					aOtherPlant->mPlantCol <= aTorch->mPlantCol))
+				continue;
+			if (aOtherPlant->mRow != aTorch->mRow)
+			{
+				aTorchScore++;
+				continue;
+			}
+			if (aOtherPlant->mSeedType == SEED_SNOWPEA)
+			{
+				aTorchScore -= 2;
+				continue;
+			}
+			if (aOtherPlant->mPlantCol >= aTorch->mPlantCol)
 				continue;
 			switch (aOtherPlant->mSeedType)
 			{
 			case SEED_PEASHOOTER:
-			case SEED_SPLITPEA:		aTorchScore += 1; break;
-			case SEED_REPEATER:		aTorchScore += 2; break;
-			case SEED_GATLINGPEA:	aTorchScore += 4; break;
-			case SEED_SNOWPEA:		aTorchScore -= 1; break;
+			case SEED_SPLITPEA:
+			case SEED_THREEPEATER: aTorchScore += 1; break;
+			case SEED_REPEATER: aTorchScore += 2; break;
+			case SEED_GATLINGPEA: aTorchScore += 4; break;
 			}
+		}
+		if (aOldTypes[i] != SEED_TORCHWOOD)
+		{
+			if (aTorchScore > 0)
+			{
+				aTorch->RemoveEffects();
+				aTorch->PlantInitialize(aCols[i], aRows[i], SEED_TORCHWOOD, SEED_NONE);
+				IZombieSetupPlant(aTorch);
+				aTorchRows[aRows[i]]++;
+			}
+			continue;
 		}
 		if (aTorchScore > 0)
 			continue;

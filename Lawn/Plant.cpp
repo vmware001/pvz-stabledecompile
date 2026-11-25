@@ -97,6 +97,20 @@ int gIZombiePlantCosts[33] = {
     150, 250, 50, 1500, 50, 150, 125, 100, 75, 200, 300
 };
 
+int* GetIZombiePlantCosts(GameMode theMode)
+{
+    if (theMode != GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED && theMode != GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED)
+        return gIZombiePlantCosts;
+
+    static int aEnhancedCosts[33] = {
+        50, 50, 75, 75, 125, 75, 125, 175, 350, 50, 50,
+        75, 175, 125, 75, 125, 200, 125, 175, 100, 100, 150,
+        150, 250, 50, 1500, 50, 150, 125, 100, 50, 200, 300
+    };
+    static_assert(ZOMBIE_SQUASH_HEAD == 30 && SEED_SQUASH == 17);
+    return aEnhancedCosts;
+}
+
 //0x401B20
 Plant::Plant()
 {
@@ -6449,7 +6463,9 @@ int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
         return 0;
 
     if (gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode) && theSeedType >= SeedType::SEED_PEASHOOTER && theSeedType <= SeedType::SEED_CABBAGEPULT)
-        return gIZombiePlantCosts[(int)theSeedType];
+    {
+        return GetIZombiePlantCosts(gLawnApp->mGameMode)[(int)theSeedType];
+    }
 
     if (!gLawnApp->GetDialog(Dialogs::DIALOG_ALMANAC) && (gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST))
     {
