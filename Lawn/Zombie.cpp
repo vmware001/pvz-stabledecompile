@@ -3420,10 +3420,10 @@ void Zombie::UpdateZombieDancer()
         {
             if (mPhaseCounter != 0)
                 return;
-            
-            PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 20, 18.0f);
-            mZombiePhase = ZombiePhase::PHASE_DANCER_DANCING_LEFT;
-            UpdateAnimSpeed();
+
+            // 按原版/上游修复的写法: 舞王和自己的伴舞同时切到走路动画(blend 10),
+            // 不再在这里额外调用 UpdateAnimSpeed(), 避免舞王和伴舞的动画速率/速度不同步(掉队).
+            PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
 
             for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
             {
@@ -3431,12 +3431,12 @@ void Zombie::UpdateZombieDancer()
 
                 if (aDancer && !aDancer->IsDeadOrDying() && !aDancer->IsImmobilizied() && !aDancer->mIsEating)
                 {
-                    aDancer->PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 20, 18.0f);
+                    aDancer->PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
                     aDancer->mZombiePhase = ZombiePhase::PHASE_DANCER_DANCING_LEFT;
-                    UpdateAnimSpeed();
-
                 }
             }
+
+            mZombiePhase = ZombiePhase::PHASE_DANCER_DANCING_LEFT;
         }
 
         ZombiePhase aDancerPhase = GetDancerPhase();
