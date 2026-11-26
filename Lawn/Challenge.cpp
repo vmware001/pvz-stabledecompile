@@ -5388,7 +5388,9 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		for (int i = 0; i < aPlantCount && aPumpkinCount < 2; i++)
 		{
 			Plant* aBasePlant = mBoard->GetTopPlantAt(aCols[i], aRows[i], PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-			if (aBasePlant != nullptr && IZombieIsOutputPlant(aBasePlant->mSeedType) && Rand(100) < 5)
+			// 土豆地雷和猫尾草不能套南瓜头
+			if (aBasePlant != nullptr && IZombieIsOutputPlant(aBasePlant->mSeedType) &&
+				aBasePlant->mSeedType != SEED_POTATOMINE && aBasePlant->mSeedType != SEED_CATTAIL && Rand(100) < 5)
 			{
 				IZombieSetupPlant(mBoard->NewPlant(aCols[i], aRows[i], SEED_PUMPKINSHELL));
 				aPumpkinCount++;
