@@ -5183,6 +5183,17 @@ static bool IZombieCantHavePumpkin(SeedType theSeedType)
     }
 }
 
+// 小喷菇 50% 替换用的攻击性植物候选(黑夜增强/黑夜困难/黑夜泳池)
+static SeedType IZombiePickAttackingPlantForPuffshroom()
+{
+    static const SeedType aCandidates[] =
+    {
+        SEED_PEASHOOTER, SEED_SNOWPEA, SEED_REPEATER, SEED_THREEPEATER, SEED_SPLITPEA,
+        SEED_CACTUS, SEED_STARFRUIT, SEED_CABBAGEPULT, SEED_KERNELPULT, SEED_CHOMPER,
+    };
+    return aCandidates[Rand((int)(sizeof(aCandidates) / sizeof(aCandidates[0])))];
+}
+
 static bool IZombieIsOutputPlant(SeedType theSeedType)
 {
 	switch (theSeedType)
@@ -5253,6 +5264,14 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			{
 				if (aOldType == SEED_REPEATER && Rand(100) < 20)
 					aNewType = SEED_GATLINGPEA;
+			}
+
+			// 黑夜增强 / 黑夜困难 / 黑夜泳池: 每个小喷菇 50% 概率替换成攻击性植物
+			if (aOldType == SEED_PUFFSHROOM && aNewType == aOldType &&
+				(mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT) && Rand(100) < 50)
+			{
+				aNewType = IZombiePickAttackingPlantForPuffshroom();
 			}
 
 			// 控制主题(forced 6 -> 阵型类型 3/4): 第 11 轮起双发射手 30% -> 机枪射手
