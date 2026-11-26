@@ -1193,6 +1193,7 @@ void Board::PickBackground()
 	case GameMode::GAMEMODE_CHALLENGE_STORMY_NIGHT:
 	case GameMode::GAMEMODE_LAST_STAND_STAGE_4:
 	case GameMode::GAMEMODE_LAST_STAND_ENDLESS_STAGE_4:
+	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT:
 		mBackground = BackgroundType::BACKGROUND_4_FOG;
 		break;
 
@@ -7851,7 +7852,9 @@ void Board::DrawProgressMeter(Graphics* g)
 #endif
 	else if (mApp->IsIZombieLevel())
 	{
-		SexyString aMatchStr = StrFormat(_S("%d/%d %s"), mChallenge->mChallengeScore, 5, TodStringTranslate(_S("[BRAINS]")).c_str());
+		// 泳池黑夜 IZE 有 6 个脑子，其它 IZE 仍为 5 个（与 Challenge::IZombieGetWinningScore 保持一致）
+		int aBrainTotal = Challenge::IZombieGetWinningScore(mApp->mGameMode);
+		SexyString aMatchStr = StrFormat(_S("%d/%d %s"), mChallenge->mChallengeScore, aBrainTotal, TodStringTranslate(_S("[BRAINS]")).c_str());
 		TodDrawString(g, aMatchStr, aPosX, 589, Sexy::FONT_DWARVENTODCRAFT12, aColor, DrawStringJustification::DS_ALIGN_CENTER);
 	}
 	else if (ProgressMeterHasFlags())
@@ -10952,7 +10955,9 @@ bool Board::StageHasZombieWalkInFromRight()
 //0x41C170
 bool Board::StageHasFog()
 {
-	return !mApp->IsStormyNightLevel() && mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_INVISIGHOUL && mBackground == BackgroundType::BACKGROUND_4_FOG;
+	// 泳池黑夜 IZE 使用雾夜背景图但不显示雾
+	return !mApp->IsStormyNightLevel() && mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_INVISIGHOUL &&
+		mApp->mGameMode != GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mBackground == BackgroundType::BACKGROUND_4_FOG;
 }
 
 // GOTY @Patoke: inlined 0x41E669

@@ -15,6 +15,7 @@ constexpr const int BEGHOULED_WINNING_SCORE = 75;
 constexpr const int SLOT_MACHINE_WINNING_SCORE = 2000;
 constexpr const int ZOMBIQUARIUM_WINNING_SCORE = 1000;
 constexpr const int I_ZOMBIE_WINNING_SCORE = 5;
+constexpr const int I_ZOMBIE_POOL_NIGHT_WINNING_SCORE = 6;
 constexpr const int MAX_PORTALS = 4;
 constexpr const int MAX_SQUIRRELS = 7;
 constexpr const int MAX_SCARY_POTS = 54;
@@ -191,6 +192,8 @@ public:
     /*inline*/ int          ScaryPotterCountSunInPot(GridItem* theScaryPot);
     int                     ScaryPotterCountPots();
     void                    IZombieInitLevel();
+    static int              IZombieGetWinningScore(GameMode theGameMode);
+    void                    IZombiePlaceExtraPlants(int theTargetPlantCount);
     void                    DrawRain(Graphics* g);
     void                    DrawWeather(Graphics* g);
     void                    SquirrelUpdate();

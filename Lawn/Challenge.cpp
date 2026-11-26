@@ -4919,6 +4919,16 @@ void Challenge::IZombiePlacePlantInSquare(SeedType theSeedType, int theGridX, in
 	if (!mBoard->IsIceAt(theGridX, theGridY) &&
 		mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
 	{
+		// 泳池黑夜: 泳池格要先铺睡莲再放主体植物(香蒲本身是水生植物, 不需要睡莲)
+		// 没有 TOPPLANT_ONLY_LILY_PAD 这个优先级, 用 TOPPLANT_ONLY_UNDER_PLANT 查底层植物
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+			theGridX >= 0 && theGridX < MAX_GRID_SIZE_X && theGridY >= 0 && theGridY < MAX_GRID_SIZE_Y &&
+			mBoard->mGridSquareType[theGridX][theGridY] == GridSquareType::GRIDSQUARE_POOL &&
+			theSeedType != SEED_CATTAIL &&
+			mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ONLY_UNDER_PLANT) == nullptr)
+		{
+			IZombieSetupPlant(mBoard->NewPlant(theGridX, theGridY, SEED_LILYPAD));
+		}
 		IZombieSetupPlant(mBoard->NewPlant(theGridX, theGridY, theSeedType));
 	}
 }
@@ -4943,7 +4953,7 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 	if (theGridY == -1)  // 参数 theGridY 使用默认的 -1 时，不限定生成范围
 	{
 		aMinGridY = 0;  // 从第 0 行开始
-		aMaxGridY = 4;  // 至第 4 行结束
+		aMaxGridY = aGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ? 5 : 4;  // 泳池黑夜 6 行, 其它 IZE 仍为 5 行
 	}
 	else
 	{
@@ -4969,7 +4979,8 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 			{
 				// 坚果和火炬树桩只会出现在靠右侧的 3 列；强化和增强模式的裂荚射手不会出现在首列
 				bool aRestrictSplitPea = (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
-					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && theSeedType == SEED_SPLITPEA;
+					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT) && theSeedType == SEED_SPLITPEA;
 				if ((!aRestrictSplitPea && theSeedType != SEED_WALLNUT && theSeedType != SEED_TORCHWOOD) ||
 					(aRestrictSplitPea && aCol > 0) ||
 					((theSeedType == SEED_WALLNUT || theSeedType == SEED_TORCHWOOD) && aColumns - aCol <= 3))
@@ -4990,6 +5001,98 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 		TodWeightedGridArray aPicked = aGridArray[aPickIndex];
 		IZombiePlacePlantInSquare(theSeedType, aPicked.mX, aPicked.mY);
 		aGridArray.erase(aGridArray.begin() + aPickIndex);
+	}
+}
+
+// 统计棋盘上的主体植物数量(南瓜头是额外保护层, 睡莲是泳池格地面层, 都不计入主体)
+static int IZombieCountMainPlants(Board* theBoard)
+{
+	int aCount = 0;
+	Plant* aPlant = nullptr;
+	while (theBoard->IteratePlants(aPlant))
+	{
+		if (aPlant->mSeedType != SEED_PUMPKINSHELL && aPlant->mSeedType != SEED_LILYPAD)
+			aCount++;
+	}
+	return aCount;
+}
+
+// 泳池黑夜: 标准 25 株生成后, 按已生成植物的比例把主体植物补足到 6 行 x 5 列
+// (补出来的植物和标准植物一样受坚果/火炬右侧 3 列、裂荚射手不进首列等落点限制)
+void Challenge::IZombiePlaceExtraPlants(int theTargetPlantCount)
+{
+	int aMainCount = IZombieCountMainPlants(mBoard);
+	int aExtraCount = theTargetPlantCount - aMainCount;
+	if (aExtraCount <= 0 || aMainCount <= 0)
+		return;
+
+	// 统计当前主体植物的各类型数量
+	int aTypeCounts[NUM_SEED_TYPES] = {};
+	Plant* aPlant = nullptr;
+	while (mBoard->IteratePlants(aPlant))
+	{
+		if (aPlant->mSeedType == SEED_PUMPKINSHELL || aPlant->mSeedType == SEED_LILYPAD)
+			continue;
+		aTypeCounts[(int)aPlant->mSeedType]++;
+	}
+
+	// 按 aExtraCount / aMainCount 的比例分配, 再用最大余数法调平到恰好 aExtraCount 棵
+	int aAllocCounts[NUM_SEED_TYPES] = {};
+	float aAllocRemainders[NUM_SEED_TYPES] = {};
+	int aAllocTotal = 0;
+	for (int i = 0; i < NUM_SEED_TYPES; i++)
+	{
+		if (aTypeCounts[i] <= 0)
+			continue;
+		float aQuota = (float)aTypeCounts[i] * aExtraCount / aMainCount;
+		aAllocCounts[i] = (int)aQuota;
+		aAllocRemainders[i] = aQuota - aAllocCounts[i];
+		aAllocTotal += aAllocCounts[i];
+	}
+	while (aAllocTotal < aExtraCount)
+	{
+		int aBestType = -1;
+		for (int i = 0; i < NUM_SEED_TYPES; i++)
+		{
+			if (aTypeCounts[i] <= 0)
+				continue;
+			if (aBestType == -1 || aAllocRemainders[i] > aAllocRemainders[aBestType])
+				aBestType = i;
+		}
+		if (aBestType == -1)
+			return;
+		aAllocCounts[aBestType]++;
+		aAllocRemainders[aBestType] -= 1.0f;
+		aAllocTotal++;
+	}
+
+	// 先放有落点限制的植物(坚果/火炬/裂荚射手), 免得剩余空格不满足限制
+	int aPlacedCount = 0;
+	for (int aPass = 0; aPass < 2 && aPlacedCount < aExtraCount; aPass++)
+	{
+		for (int i = 0; i < NUM_SEED_TYPES && aPlacedCount < aExtraCount; i++)
+		{
+			if (aAllocCounts[i] <= 0)
+				continue;
+			bool aRestricted = i == SEED_WALLNUT || i == SEED_TORCHWOOD || i == SEED_SPLITPEA;
+			if (aRestricted != (aPass == 0))
+				continue;
+
+			int aBeforeCount = IZombieCountMainPlants(mBoard);
+			IZombiePlacePlants((SeedType)i, aAllocCounts[i], -1);
+			aPlacedCount += IZombieCountMainPlants(mBoard) - aBeforeCount;
+		}
+	}
+
+	// 罕见情况下受限植物找不到合法空格(例如坚果只剩左侧空位), 用不受限制的向日葵补满数量
+	for (int i = 0; i < aExtraCount && aPlacedCount < aExtraCount; i++)
+	{
+		int aBeforeCount = IZombieCountMainPlants(mBoard);
+		IZombiePlacePlants(SEED_SUNFLOWER, 1, -1);
+		int aAddedCount = IZombieCountMainPlants(mBoard) - aBeforeCount;
+		if (aAddedCount <= 0)
+			break;
+		aPlacedCount += aAddedCount;
 	}
 }
 
@@ -5039,6 +5142,10 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	Plant* aPlant = nullptr;
 	while (mBoard->IteratePlants(aPlant))
 	{
+		// 睡莲是泳池格的地面层, 不是主体植物, 不参与强化替换
+		if (aPlant->mSeedType == SEED_LILYPAD)
+			continue;
+
 		SeedType aOldType = aPlant->mSeedType;
 		SeedType aNewType = aOldType;
 		if (!theSpecialFormation)
@@ -5079,7 +5186,8 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			aPiercingGloomshroomCount++;
 		}
 
-		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && mSurvivalStage >= 10)
+		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT) && mSurvivalStage >= 10)
 		{
 			if (aOldType == SEED_UMBRELLA && Rand(100) < 50)
 				aNewType = SEED_HYPNOSHROOM;
@@ -5088,7 +5196,8 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			else if (aOldType == SEED_WALLNUT && Rand(100) < 50)
 				aNewType = SEED_TALLNUT;
 		}
-		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED) && mSurvivalStage >= 20)
+		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT) && mSurvivalStage >= 20)
 		{
 			if (aNewType == SEED_MELONPULT && Rand(100) < 20)
 				aNewType = SEED_WINTERMELON;
@@ -5215,15 +5324,18 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	}
 
 	bool aOccupied[MAX_GRID_SIZE_X][MAX_GRID_SIZE_Y] = {};
+	int aMoveRows = mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ? 6 : 5;
 	aPlant = nullptr;
 	while (mBoard->IteratePlants(aPlant))
 	{
-		if (aPlant->mSeedType == SEED_PUMPKINSHELL || aPlant->mPlantCol < 0 || aPlant->mPlantCol >= MAX_GRID_SIZE_X || aPlant->mRow < 0 || aPlant->mRow >= MAX_GRID_SIZE_Y)
+		// 南瓜头和睡莲都不是主体植物, 不能算占格(睡莲在泳池格与主体植物共格是正常的)
+		if (aPlant->mSeedType == SEED_PUMPKINSHELL || aPlant->mSeedType == SEED_LILYPAD ||
+			aPlant->mPlantCol < 0 || aPlant->mPlantCol >= MAX_GRID_SIZE_X || aPlant->mRow < 0 || aPlant->mRow >= MAX_GRID_SIZE_Y)
 			continue;
 		if (aOccupied[aPlant->mPlantCol][aPlant->mRow])
 		{
 			bool aMoved = false;
-			for (int aRow = 0; aRow < 5 && !aMoved; aRow++)
+			for (int aRow = 0; aRow < aMoveRows && !aMoved; aRow++)
 			{
 				for (int aCol = 0; aCol < 5; aCol++)
 				{
@@ -5253,11 +5365,18 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	}
 }
 
+// 僵尸公敌通关需要吃掉的脑子数量: 泳池黑夜有 6 行可玩所以是 6 个, 其它 IZE 仍为 5 个
+int Challenge::IZombieGetWinningScore(GameMode theGameMode)
+{
+	return theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ? I_ZOMBIE_POOL_NIGHT_WINNING_SCORE : I_ZOMBIE_WINNING_SCORE;
+}
+
 //0x42A890
 void Challenge::IZombieInitLevel()
 {
 	mChallengeScore = 0;
-	for (int aRow = 0; aRow < I_ZOMBIE_WINNING_SCORE; aRow++)
+	int aWinningScore = IZombieGetWinningScore(mApp->mGameMode);
+	for (int aRow = 0; aRow < aWinningScore; aRow++)
 	{
 		GridItem* aBrain = mBoard->mGridItems.DataArrayAlloc();
 		aBrain->mGridItemType = GRIDITEM_IZOMBIE_BRAIN;
@@ -5382,6 +5501,7 @@ void Challenge::IZombieInitLevel()
 	case GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED:
+	case GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT:
 	case GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS:
 	{
 		if (mSurvivalStage == 10) // @Patoke: add achievement
@@ -5404,7 +5524,8 @@ void Challenge::IZombieInitLevel()
 		{
 			aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 5), ClampInt(3 + mSurvivalStage / 2, 2, 7));
 		}
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
 			aPuffshroomCount = min(aPuffshroomCount, 5);
 		int aSunflowerCount = 8 - aPuffshroomCount;
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
@@ -5484,7 +5605,11 @@ void Challenge::IZombieInitLevel()
 				break;
 			}
 		}
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
+		// 泳池黑夜: 标准 25 株之后按原有比例补足 6 行 x 5 列 = 30 株主体
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+			IZombiePlaceExtraPlants(30);
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
 			IZombieStrengthenPlants(aSpecialFormation, aFormationType);
 		break;
 	}
@@ -5696,11 +5821,12 @@ GridItem* Challenge::IZombieGetBrainTarget(Zombie* theZombie)
 //0x42B8B0
 void Challenge::IZombieScoreBrain(GridItem* theBrain)
 {
+	int aWinningScore = IZombieGetWinningScore(mApp->mGameMode);
 	mBoard->mChallenge->mChallengePoints += 100;
 	mBoard->mChallenge->mChallengeScore++;
-	mBoard->mProgressMeterWidth = TodAnimateCurve(0, I_ZOMBIE_WINNING_SCORE, mBoard->mChallenge->mChallengeScore, 0, PROGRESS_METER_COUNTER, CURVE_LINEAR);
+	mBoard->mProgressMeterWidth = TodAnimateCurve(0, aWinningScore, mBoard->mChallenge->mChallengeScore, 0, PROGRESS_METER_COUNTER, CURVE_LINEAR);
 
-	if (mBoard->mChallenge->mChallengeScore == I_ZOMBIE_WINNING_SCORE)
+	if (mBoard->mChallenge->mChallengeScore == aWinningScore)
 	{
 		if (mApp->IsEndlessIZombie(mApp->mGameMode))
 		{
@@ -5712,7 +5838,7 @@ void Challenge::IZombieScoreBrain(GridItem* theBrain)
 		}
 	}
 
-	if (mBoard->mChallenge->mChallengeScore != I_ZOMBIE_WINNING_SCORE || !PuzzleIsAwardStage())
+	if (mBoard->mChallenge->mChallengeScore != aWinningScore || !PuzzleIsAwardStage())
 	{
 		mBoard->DropLootPiece(theBrain->mPosX + 40, theBrain->mPosY - 50, 12);
 	}
