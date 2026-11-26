@@ -5456,6 +5456,60 @@ int Challenge::IZombieGetWinningScore(GameMode theGameMode)
 }
 
 //0x42A890
+// IZE 阵型主题(0输出 1爆炸 2倾斜 3穿透 4回复 5综合 6控制 7即死)的出现记录:
+// 越久没出现过的主题权重越高(下一关更容易出现);
+// 同一个主题不允许连续出现三把(综合主题 5、控制主题 6 除外).
+static int sIZThemeLastSeen[8] = { -999, -999, -999, -999, -999, -999, -999, -999 };
+static int sIZThemeRecent[2] = { -1, -1 };
+static int sIZThemeRound = 0;
+
+static int IZombiePickThemeId(bool theSpecialGroup)
+{
+    int aCandidates[8];
+    int aWeights[8];
+    int aCount = 0;
+    for (int aTheme = 0; aTheme < 8; aTheme++)
+    {
+        bool aInGroup = theSpecialGroup ? (aTheme <= 4) : (aTheme >= 5);
+        if (!aInGroup)
+            continue;
+
+        // 连续两把都是这个主题时, 下一把不再选它(综合/控制除外)
+        if (aTheme != 5 && aTheme != 6 && sIZThemeRecent[0] == aTheme && sIZThemeRecent[1] == aTheme)
+            continue;
+
+        int aGap = sIZThemeRound - sIZThemeLastSeen[aTheme];
+        aCandidates[aCount] = aTheme;
+        aWeights[aCount] = ClampInt(aGap, 1, 24);   // 越久没出现, 权重越大
+        aCount++;
+    }
+
+    if (aCount == 0)
+        return theSpecialGroup ? RandRangeInt(0, 4) : RandRangeInt(5, 7);
+
+    int aTotalWeight = 0;
+    for (int i = 0; i < aCount; i++)
+        aTotalWeight += aWeights[i];
+    int aPick = Rand(aTotalWeight);
+    for (int i = 0; i < aCount; i++)
+    {
+        aPick -= aWeights[i];
+        if (aPick < 0)
+            return aCandidates[i];
+    }
+    return aCandidates[0];
+}
+
+static void IZombieRecordTheme(int theTheme)
+{
+    if (theTheme < 0 || theTheme >= 8)
+        return;
+    sIZThemeLastSeen[theTheme] = sIZThemeRound;
+    sIZThemeRecent[1] = sIZThemeRecent[0];
+    sIZThemeRecent[0] = theTheme;
+    sIZThemeRound++;
+}
+
 void Challenge::IZombieInitLevel()
 {
 	mChallengeScore = 0;
@@ -5593,7 +5647,7 @@ void Challenge::IZombieInitLevel()
 
 		int aForcedFormation = gIZombieNextFormation;
 		gIZombieNextFormation = -1;
-		int aFormationHit = aForcedFormation >= 0 ? 0 : RandRangeInt(0, 4);
+		int aFormationHit = aForcedFormation >= 0 ? 0 : RandRangeInt(0, 4);   // 仅非增强类模式用于判断特殊阵型
 
 		int aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 4), ClampInt(3 + mSurvivalStage / 2, 2, 6));
 		if (mSurvivalStage == 0)
@@ -5631,9 +5685,11 @@ void Challenge::IZombieInitLevel()
 			aSpecialFormation = aFormationHit == 0 && mSurvivalStage >= 1;
 		}
 		int aFormationType = -1;
+		int aThemeId = -1;
 		if (aSpecialFormation)
 		{
-			aFormationType = aForcedFormation >= 0 ? aForcedFormation : RandRangeInt(0, 4);
+			aFormationType = aForcedFormation >= 0 ? aForcedFormation : IZombiePickThemeId(true);
+			aThemeId = aFormationType;
 			switch (aFormationType)
 			{
 			case 0:  // 输出阵
@@ -5660,7 +5716,22 @@ void Challenge::IZombieInitLevel()
 		}
 		else
 		{
-			aFormationType = aForcedFormation >= 5 ? (aForcedFormation == 5 ? 0 : aForcedFormation == 6 ? 3 : 5) : RandRangeInt(0, 5);
+			if (aForcedFormation >= 5)
+			{
+				aFormationType = aForcedFormation == 5 ? 0 : aForcedFormation == 6 ? 3 : 5;
+				aThemeId = aForcedFormation;
+			}
+			else
+			{
+				// 非特殊阵型: 按主题权重抽 综合(5)/控制(6)/即死(7) 之一, 再映射到内部阵型类型
+				aThemeId = IZombiePickThemeId(false);
+				if (aThemeId == 5)
+					aFormationType = RandRangeInt(0, 2);
+				else if (aThemeId == 6)
+					aFormationType = RandRangeInt(3, 4);
+				else
+					aFormationType = 5;
+			}
 			switch (aFormationType)
 			{
 			case 0:
@@ -5703,6 +5774,8 @@ void Challenge::IZombieInitLevel()
 				break;
 			}
 		}
+		IZombieRecordTheme(aThemeId);
+
 		// 泳池黑夜: 标准 25 株之后按原有比例补足 6 行 x 5 列 = 30 株主体
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
 			IZombiePlaceExtraPlants(30);
