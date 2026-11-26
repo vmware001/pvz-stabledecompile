@@ -6358,7 +6358,9 @@ Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon)
 #ifdef _DEBUG
             // IZE 调试日志(仅 Debug 构建): 记录地图左边缘僵尸被土豆雷/裂荚射手判定命中的情况,
             // 用来确认"第一列土豆雷正常引爆、第二列及以后不误触"以及裂荚射手左侧索敌是否正常.
-            if (mApp->IsIZombieLevel() && aZombie->mPosX < 40.0f &&
+            // 注意这里在每帧的索敌调用里, 必须限频: 否则写日志(文件+控制台)会把 Debug 版拖到掉帧,
+            // 表现成僵尸卡顿/跳步, 而 Release 没有这段日志所以看起来"没问题".
+            if (mApp->IsIZombieLevel() && aZombie->mPosX < 40.0f && (mBoard->mMainCounter % 60) == 0 &&
                 (mSeedType == SeedType::SEED_POTATOMINE || mSeedType == SeedType::SEED_SPLITPEA))
             {
                 TodTraceAndLog("TARGET seed=%d col=%d row=%d plantx=%d atk=%d..%d ztype=%d zx=%.1f zbody=%d..%d eat=%d",
