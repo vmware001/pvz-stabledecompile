@@ -7755,8 +7755,8 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
     {
     case ZombieType::ZOMBIE_IMP:
         aLocalCenterX = 47.0f;
-        aLocalCenterY = 84.0f;
-        aTypeScale = 0.64f;
+        aLocalCenterY = 82.0f;
+        aTypeScale = 0.86f;   // 调大一点, 避免僵尸身体穿出游泳圈
         break;
 
     default:
@@ -10500,6 +10500,7 @@ bool Zombie::IsZombotany(ZombieType theZombieType)
 bool Zombie::ZombieTypeCanGoInPool(ZombieType theZombieType)
 {
     return 
+        theZombieType == ZombieType::ZOMBIE_DUCKY_TUBE || 
         theZombieType == ZombieType::ZOMBIE_NORMAL || 
         theZombieType == ZombieType::ZOMBIE_TRAFFIC_CONE || 
         theZombieType == ZombieType::ZOMBIE_PAIL || 
