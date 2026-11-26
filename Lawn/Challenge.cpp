@@ -4820,12 +4820,21 @@ ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int theGridY)
 {
 	// 泳池黑夜: 撑杆僵尸在水路直接替换成海豚骑士僵尸(海豚本来就是水路单位), 陆地行不受影响
+	bool aDolphinDiveIn = false;
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_POLEVAULTER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		theZombieType = ZOMBIE_DOLPHIN_RIDER;
-		// 海豚的落点会往左偏一格: 把它往右挪一列放(用户在第六列放, 实际放在第七列), 落点正好回到用户放的那一格
-		theGridX = min(theGridX + 1, 8);
+		if (theGridX + 1 <= 8)
+		{
+			// 海豚的落点会往左偏一格: 把它往右挪一列放(用户在第六列放, 实际放在第七列), 落点正好回到用户放的那一格
+			theGridX = theGridX + 1;
+		}
+		else
+		{
+			// 放在最后一列(第 9 列)时没法再往右挪, 改成从池子右侧的入水点按原版流程自然跳入水中
+			aDolphinDiveIn = true;
+		}
 	}
 
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
@@ -4844,7 +4853,13 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 
 	// 泳池黑夜: 撑杆替换出来的海豚骑士按"已经在泳池里骑行"初始化.
 	// 原版入水时 mPosX -= 70、绘制再 +70 抵消, 这样骑行时显示在放置格上; 放置列已往右挪一列(见上面的替换分支).
-	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
+	if (aDolphinDiveIn)
+	{
+		// 从池子右侧的自然入水点入水, 走原版"跳入水中 -> 骑行"流程
+		aZombie->mPosX = 705.0f;
+		aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
+	}
+	else if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		aZombie->mInPool = true;
