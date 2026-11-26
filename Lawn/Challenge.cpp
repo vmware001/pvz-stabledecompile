@@ -5267,7 +5267,9 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		{
 			if (aOldType == SEED_REPEATER && Rand(100) < 30)
 				aNewType = SEED_GATLINGPEA;
-			else if (aOldType == SEED_SPLITPEA && aCattailCount < 1 && Rand(100) < 50)
+			// 泳池黑夜: 猫尾草只能出现在水路(泳池行)
+			else if (aOldType == SEED_SPLITPEA && aCattailCount < 1 && Rand(100) < 50 &&
+				(mApp->mGameMode != GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT || mBoard->mPlantRow[aPlant->mRow] == PlantRowType::PLANTROW_POOL))
 			{
 				aNewType = SEED_CATTAIL;
 				aCattailCount++;
@@ -5442,11 +5444,15 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 					if (aOccupied[aCol][aRow] || mBoard->IsIceAt(aCol, aRow) ||
 						mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
 						continue;
-					// 泳池黑夜: 被重定位的土豆地雷/地刺同样只能落在陆地行
-					if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
-						(aPlant->mSeedType == SEED_POTATOMINE || aPlant->mSeedType == SEED_SPIKEWEED) &&
-						mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL)
-						continue;
+					// 泳池黑夜: 被重定位的土豆地雷/地刺只能落在陆地行; 猫尾草只能落在水路行
+					if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+					{
+						if ((aPlant->mSeedType == SEED_POTATOMINE || aPlant->mSeedType == SEED_SPIKEWEED) &&
+							mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL)
+							continue;
+						if (aPlant->mSeedType == SEED_CATTAIL && mBoard->mPlantRow[aRow] != PlantRowType::PLANTROW_POOL)
+							continue;
+					}
 					aPlant->mPlantCol = aCol;
 					aPlant->mRow = aRow;
 					aPlant->mStartRow = aRow;
