@@ -5225,6 +5225,20 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				if (aOldType == SEED_REPEATER && Rand(100) < 20)
 					aNewType = SEED_GATLINGPEA;
 			}
+
+			// 控制主题(forced 6 -> 阵型类型 3/4): 和综合/输出主题一样做植物替换
+			if (theFormationType == 3 || theFormationType == 4)
+			{
+				if (aNewType == aOldType && aOldType == SEED_REPEATER && Rand(100) < 30)
+				{
+					aNewType = SEED_GATLINGPEA;
+				}
+				else if (aNewType == aOldType && aOldType == SEED_SPLITPEA && aCattailCount < 1 && Rand(100) < 50)
+				{
+					aNewType = SEED_CATTAIL;
+					aCattailCount++;
+				}
+			}
 		}
 		else if (theFormationType == 0)
 		{

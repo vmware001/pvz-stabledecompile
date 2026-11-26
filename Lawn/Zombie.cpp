@@ -4803,11 +4803,16 @@ void Zombie::UpdateLadder()
 
 // 本行或上下相邻行是否还有没被吃掉的脑子(IZE).
 // 舞王需要管这三行(否则会把上下两行的脑子漏掉); 伴舞不做任何脑子检测, 只跟着舞王.
+// 泳池黑夜: 水路行的脑子不归舞王管(水路那边由泳池规则处理), 这里跳过泳池行.
 static bool IZombieHasBrainNearRow(Board* theBoard, int theRow)
 {
+    bool aSkipPoolRows = theBoard->mApp != nullptr &&
+        theBoard->mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
     for (int aRow = theRow - 1; aRow <= theRow + 1; aRow++)
     {
         if (aRow < 0 || aRow >= MAX_GRID_SIZE_Y)
+            continue;
+        if (aSkipPoolRows && theBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL)
             continue;
 
         GridItem* aBrain = theBoard->GetGridItemAt(GRIDITEM_IZOMBIE_BRAIN, 0, aRow);
