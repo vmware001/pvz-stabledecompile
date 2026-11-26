@@ -3421,17 +3421,37 @@ void Zombie::UpdateZombieDancer()
             if (mPhaseCounter != 0)
                 return;
 
-            // 按原版/上游修复的写法: 舞王和自己的伴舞同时切到走路动画(blend 10),
-            // 不再在这里额外调用 UpdateAnimSpeed(), 避免舞王和伴舞的动画速率/速度不同步(掉队).
-            PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
+            // 召唤收手后先原地定住 10 帧再起步: 位置速度来自当前动画 _ground 轨道的瞬时速度,
+            // 如果收手当帧就切走路, 姿势还在 blend 阶段位置就已经在走, 看起来就是整队往左滑
+            // 一小段(约 0.2 格). 这里先把走路动画播上(让姿势开始混合), 但相位再保持"收手"状态
+            // 10 帧——该状态在原版整队逻辑里速度=0, 队伍不动; 混合完成后再真正切到走路相位.
+            Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+            bool aBlendDone = (aBodyReanim == nullptr) || aBodyReanim->mAnimTime < 0.5f;
 
+            if (!aBlendDone)
+            {
+                PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
+
+                for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
+                {
+                    Zombie* aDancer = mBoard->ZombieTryToGet(mFollowerZombieID[i]);
+                    if (aDancer && !aDancer->IsDeadOrDying() && !aDancer->IsImmobilizied() && !aDancer->mIsEating)
+                    {
+                        aDancer->PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
+                    }
+                }
+
+                mPhaseCounter = 10;
+                return;
+            }
+
+            // 混合完成: 正式切到走路相位, 舞王和伴舞同时开始移动
             for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
             {
                 Zombie* aDancer = mBoard->ZombieTryToGet(mFollowerZombieID[i]);
 
                 if (aDancer && !aDancer->IsDeadOrDying() && !aDancer->IsImmobilizied() && !aDancer->mIsEating)
                 {
-                    aDancer->PlayZombieReanim("anim_walk", ReanimLoopType::REANIM_LOOP, 10, 18.0f);
                     aDancer->mZombiePhase = ZombiePhase::PHASE_DANCER_DANCING_LEFT;
                 }
             }
