@@ -4840,13 +4840,18 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
 
-	// 泳池黑夜: 撑杆替换出来的海豚骑士放到泳池右侧的入水点, 让它走原版的"跳入水中 -> 骑行 -> 跳/出水"流程.
-	// 之前手动设成骑行状态会跳过原版的 -70/+70 位移补偿, 落点会往左偏一格, 这里改回自然入水.
+	// 泳池黑夜: 撑杆替换出来的海豚骑士直接在放卡的那一格按"已经在泳池里骑行"初始化.
+	// 原版入水时 mPosX -= 70、绘制再 +70 抵消; 跳跃落地时绘制偏移会消失, 所以落地位移在 Zombie 侧按标记补偿.
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
-		aZombie->mPosX = 705.0f;    // 原版入水判定区间是 700 < mX <= 720
-		aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
+		aZombie->mInPool = true;
+		aZombie->mPoolNightDolphinPlaced = true;
+		aZombie->mAltitude = 0.0f;
+		aZombie->mPosX -= 70.0f;
+		aZombie->mZombiePhase = PHASE_DOLPHIN_RIDING;
+		aZombie->mZombieAttackRect = Rect(-29, 0, 70, 115);
+		aZombie->PlayZombieReanim("anim_ride", ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME, 0, 12.0f);
 	}
 	// 泳池黑夜: 冰车/巨人/舞王/矿工/投篮车放在水路不合理(体积/机制会无视植物或无法正常下水),
 	// 不再生成缠绕水草植物实体, 只给僵尸挂上缠绕动画并让它慢慢沉入水底(沉没与死亡由 Zombie 侧处理)
