@@ -7735,56 +7735,122 @@ void Zombie::Draw(Graphics* g)
     }
 }
 
-// 泳池黑夜: 小鬼僵尸的 reanim 没有 duckytube 轨道(普通僵尸靠 reanim 自带的游泳圈轨道),
-// 这里用现成的游泳圈贴图给它们补一个, 当作"长在身上"的一部分来画:
-// 位置/缩放/朝向都取本体 reanim 的最终变换(含缩放、镜像、入水时的 mBodyY), 再叠加一个固定的腰部局部位移,
-// 因此会跟着本体走、跟着上下起伏; 这个模式里始终显示(上岸也不消失), 只有尸体/死亡状态不画.
-// 局部 Y 基准: 各类型 walk 动作里脚底(含贴图)大约在 126~139, 腰取"脚底上方约 62px";
-// 橄榄球僵尸的 reanim 在 GetDrawPos 里整体上移 16px, 已经包含在它的本体变换里, 这里只需用它的脚底 139 - 62 = 77.
+// ============================================================================
+// 泳池黑夜: 给没有 Zombie_duckytube 轨道的僵尸补画鸭子救生圈
+// (IZ_POOL_NIGHT_DUCKYTUBE_BEGIN / 回滚时整段删除即可恢复原状)
+//
+// 普通僵尸的 reanim(REANIM_ZOMBIE)自带 Zombie_duckytube 轨道: 入水后 GetDrawPos 会用水面
+// 裁剪把下半身裁掉, 游泳圈正好卡在水面, 看起来像套着救生圈在游. 下面这些僵尸用自己的
+// reanim, 没有这条轨道, 放进水路就会以陆地走路姿态站在水面上. 这里用现成的
+// IMAGE_REANIM_ZOMBIE_DUCKYTUBE 贴图给它们补一个"游泳圈":
+//   - 以本体 reanim 的一条躯干轨道为基准, 跟随它"当前姿态的绝对位置"(不是动作首帧),
+//     所以走路/吃东西/跳舞换动作时游泳圈都不会和腰错位;
+//   - 基准点取本体 reanim 的最终变换(含 mScaleZombie / 镜像 / 入水时的 mBodyY);
+//   - 画在 DrawReanim 之后并清掉水面裁剪, 下半圈可以压在水面下, 与本体被裁掉的下半身衔接;
+//   - 颜色/淡出沿用本体 reanim 的 mColorOverride, 冰冻/魅惑/死亡淡出时与身体同色.
+// 只在这个模式(调用点已有模式判断)且在水路里绘制; 陆地行、其它模式完全不进这个函数.
+// ============================================================================
+namespace
+{
+struct IZombiePoolNightDuckyTubeDef
+{
+    ZombieType  mZombieType;
+    const char* mAnchorTrack;   // 本体躯干轨道(游泳圈相对它固定), 用来跟随步伐起伏
+    float       mOffsetX;       // 游泳圈贴图中心相对该轨道变换原点的偏移(本体 reanim 单位)
+    float       mOffsetY;
+    float       mScale;         // 贴图缩放(原版 Zombie_duckytube 轨道里就是 0.8)
+};
+
+// 每种僵尸单独标定: 把游泳圈中心放在"骨架腰胯"相对躯干轨道的位置上,
+// 水平方向与本体中轴对齐, 竖直方向让游泳圈下半圈略微沉到水面线下(和原版一致).
+const IZombiePoolNightDuckyTubeDef gIZombiePoolNightDuckyTubeDefs[] =
+{
+    // 读报僵尸: 上半身(大衣)更宽, 圈压在报纸/大衣下摆
+    { ZombieType::ZOMBIE_NEWSPAPER,        "Zombie_paper_body",       2.2f,  32.6f, 0.8f },
+    // 雪人僵尸: 体型明显更大, 圈放大到 1.0; 跟随它自己的大躯干轨道
+    { ZombieType::ZOMBIE_YETI,             "Zombie_yeti_body",       39.7f,  41.8f, 1.0f },
+    // 小丑僵尸: 胸前有盒子, 圈压到腰上
+    { ZombieType::ZOMBIE_JACK_IN_THE_BOX,  "Zombie_jackbox_body2",   -1.2f,  10.8f, 0.8f },
+    // 伴舞僵尸: 本体在 UpdateReanim 里额外缩放到 0.79872, 贴图缩放会再乘上本体缩放
+    { ZombieType::ZOMBIE_BACKUP_DANCER,    "Zombie_disco_upperbody", 13.3f,  74.0f, 0.8f },
+    // 扶梯僵尸: 背着梯子, 圈套在腰上; 梯子下半截被水面裁掉, 游泳圈压在梯子前面
+    { ZombieType::ZOMBIE_LADDER,           "Zombie_ladder_body2",     4.5f,   2.0f, 0.8f },
+    // 橄榄球僵尸: 体型宽(肩甲+护具), 圈放大到 1.4; GetDrawPos 里整体上移 16px 已含在本体变换里
+    { ZombieType::ZOMBIE_FOOTBALL,         "zombie_football_upperbody",  46.5f, 57.0f, 1.4f },
+};
+}
+
+// 泳池黑夜: 给没有 duckytube 轨道的僵尸补一个游泳圈(原先只支持小鬼僵尸)
 void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
 {
-    // 这几种僵尸的本体 reanim 里没有 Zombie_duckytube 轨道(只有 REANIM_ZOMBIE 才有),
-    // 所以用游泳圈贴图兜底; 只在水里显示(上岸/其它模式不画), 位置按腰部固定位移跟着本体变换.
-    if (!IsOnBoard() || !mInPool || mSquished || IsDeadOrDying())
+    // 这些僵尸的 reanim 里没有 Zombie_duckytube 轨道(只有 REANIM_ZOMBIE 才有),
+    // 所以用游泳圈贴图兜底; 只在水路里显示(陆地行/其它模式不画).
+    if (!IsOnBoard() || mSquished || IsDeadOrDying())
         return;
-
-    float aLocalCenterX;
-    float aLocalCenterY;
-    float aTypeScale;
-    switch (mZombieType)
-    {
-    case ZombieType::ZOMBIE_IMP:
-        aLocalCenterX = 47.0f;
-        aLocalCenterY = 82.0f;
-        aTypeScale = 0.86f;   // 调大一点, 避免僵尸身体穿出游泳圈
-        break;
-
-    default:
+    if (!mInPool && (mBoard == nullptr || mBoard->mPlantRow[mRow] != PlantRowType::PLANTROW_POOL))
         return;
-    }
+    if (mPoolNightDrown)   // 被 Challenge 拖下水沉底的僵尸不加游泳圈
+        return;
 
     Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
     if (aBodyReanim == nullptr || aBodyReanim->mOverlayMatrix.m11 <= 0.0f)
         return;
 
-    // 跟随本体走路/吃植物的上下起伏: 取该僵尸骨盆/下身轨道的当前姿态相对动作首帧的偏移, 限幅后叠加到游泳圈位置,
-    // 这样游泳圈会像真正套在腰上一样随着步伐一起动(而不是一张贴死的图).
-    const char* aAnchorTrackName = nullptr;
-    switch (mZombieType)
+    // 先算出游泳圈贴图中心在本体绘制坐标系里的位置, 以及贴图缩放
+    float aBodyScaleX = aBodyReanim->mOverlayMatrix.m00;
+    float aBodyScaleY = aBodyReanim->mOverlayMatrix.m11;
+    float aCenterX;
+    float aCenterY;
+    float aDrawScale;
+    if (mZombieType == ZombieType::ZOMBIE_IMP)
     {
-    case ZombieType::ZOMBIE_IMP:        aAnchorTrackName = "Zombie_imp_body2"; break;
+        // 小鬼僵尸: 原有实现, 参数与跟随方式保持不变(避免影响已交付的效果)
+        const float aLocalCenterX = 47.0f;
+        const float aLocalCenterY = 82.0f;
+        float aBobX = 0.0f;
+        float aBobY = 0.0f;
+        const char* aAnchorTrackName = "Zombie_imp_body2";
+        if (aBodyReanim->TrackExists(aAnchorTrackName))
+        {
+            int aTrackIndex = aBodyReanim->FindTrackIndex(aAnchorTrackName);
+            ReanimatorTransform aCurrentTransform;
+            aBodyReanim->GetCurrentTransform(aTrackIndex, &aCurrentTransform);
+            SexyTransform2D aBasePoseMatrix;
+            aBodyReanim->GetTrackBasePoseMatrix(aTrackIndex, aBasePoseMatrix);
+            aBobX = ClampFloat(aCurrentTransform.mTransX - aBasePoseMatrix.m02, -6.0f, 6.0f);
+            aBobY = ClampFloat(aCurrentTransform.mTransY - aBasePoseMatrix.m12, -8.0f, 8.0f);
+        }
+
+        aDrawScale = 0.8f * 0.86f * aBodyScaleY;   // 调大一点, 避免僵尸身体穿出游泳圈
+        aCenterX = aBodyReanim->mOverlayMatrix.m02 + aBodyScaleX * (aLocalCenterX + aBobX * 0.8f);
+        aCenterY = aBodyReanim->mOverlayMatrix.m12 + aBodyScaleY * (aLocalCenterY + aBobY);
     }
-    float aBobX = 0.0f;
-    float aBobY = 0.0f;
-    if (aAnchorTrackName != nullptr && aBodyReanim->TrackExists(aAnchorTrackName))
+    else
     {
-        int aTrackIndex = aBodyReanim->FindTrackIndex(aAnchorTrackName);
-        ReanimatorTransform aCurrentTransform;
-        aBodyReanim->GetCurrentTransform(aTrackIndex, &aCurrentTransform);
-        SexyTransform2D aBasePoseMatrix;
-        aBodyReanim->GetTrackBasePoseMatrix(aTrackIndex, aBasePoseMatrix);
-        aBobX = ClampFloat(aCurrentTransform.mTransX - aBasePoseMatrix.m02, -6.0f, 6.0f);
-        aBobY = ClampFloat(aCurrentTransform.mTransY - aBasePoseMatrix.m12, -8.0f, 8.0f);
+        const IZombiePoolNightDuckyTubeDef* aDef = nullptr;
+        for (int i = 0; i < (int)(sizeof(gIZombiePoolNightDuckyTubeDefs) / sizeof(gIZombiePoolNightDuckyTubeDefs[0])); i++)
+        {
+            if (gIZombiePoolNightDuckyTubeDefs[i].mZombieType == mZombieType)
+            {
+                aDef = &gIZombiePoolNightDuckyTubeDefs[i];
+                break;
+            }
+        }
+        if (aDef == nullptr)
+            return;
+        if (!aBodyReanim->TrackExists(aDef->mAnchorTrack))
+            return;
+
+        // 跟随躯干轨道当前姿态的绝对位置: 换动作(走/吃/跳舞/跑)时游泳圈都贴在腰上,
+        // 不会像"相对首帧位移"那样因为基准动作变化而整体错位.
+        ReanimatorTransform aAnchorTransform;
+        aBodyReanim->GetCurrentTransform(aBodyReanim->FindTrackIndex(aDef->mAnchorTrack), &aAnchorTransform);
+        float aAnchorX = aBodyReanim->mOverlayMatrix.m02 + aBodyScaleX * aAnchorTransform.mTransX;
+        float aAnchorY = aBodyReanim->mOverlayMatrix.m12 + aBodyScaleY * aAnchorTransform.mTransY;
+
+        aDrawScale = aDef->mScale * aBodyScaleY;
+        aCenterX = aAnchorX + aBodyScaleX * aDef->mOffsetX;
+        aCenterY = aAnchorY + aBodyScaleY * aDef->mOffsetY;
     }
 
     // 游泳圈贴图没有在 Resources 里静态登记, 按 reanim 定义里的资源名加载一次并缓存
@@ -7801,12 +7867,6 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
     if (aTubeImage == nullptr)
         return;
 
-    float aBodyScaleX = aBodyReanim->mOverlayMatrix.m00;
-    float aBodyScaleY = aBodyReanim->mOverlayMatrix.m11;
-    float aDrawScale = 0.8f * aTypeScale * aBodyScaleY;
-    float aCenterX = aBodyReanim->mOverlayMatrix.m02 + aBodyScaleX * (aLocalCenterX + aBobX * 0.8f);
-    float aCenterY = aBodyReanim->mOverlayMatrix.m12 + aBodyScaleY * (aLocalCenterY + aBobY);
-
     float aDrawWidth = aTubeImage->mWidth * aDrawScale;
     float aDrawHeight = aTubeImage->mHeight * aDrawScale;
     Rect aSrcRect(0, 0, aTubeImage->mWidth, aTubeImage->mHeight);
@@ -7818,6 +7878,8 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
 
     g->PushState();
     g->ClearClipRect();
+    g->SetColorizeImages(true);                       // 与本体同色(冰冻/魅惑/死亡淡出)
+    g->SetColor(aBodyReanim->mColorOverride);
     if (aBodyScaleX < 0.0f)
     {
         g->DrawImageMirror(aTubeImage, aDestRect, aSrcRect, true);
