@@ -5615,7 +5615,21 @@ void Challenge::IZombieInitLevel()
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
 
-		bool aSpecialFormation = aForcedFormation >= 0 ? aForcedFormation <= 4 : aFormationHit == 0 && mSurvivalStage >= 1;
+		// 增强 / 困难 / 泳池黑夜: 特殊阵型概率提高到 40%(其它模式维持原版 1/5)
+		bool aSpecialFormation;
+		if (aForcedFormation >= 0)
+		{
+			aSpecialFormation = aForcedFormation <= 4;
+		}
+		else if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+		{
+			aSpecialFormation = Rand(100) < 40 && mSurvivalStage >= 1;
+		}
+		else
+		{
+			aSpecialFormation = aFormationHit == 0 && mSurvivalStage >= 1;
+		}
 		int aFormationType = -1;
 		if (aSpecialFormation)
 		{
