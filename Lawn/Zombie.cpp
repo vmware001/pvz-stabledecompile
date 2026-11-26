@@ -7147,6 +7147,19 @@ void Zombie::DrawBungeeCord(Graphics* g, int theOffsetX, int theOffsetY)
 }
 
 //0x52D9E0
+// 泳池黑夜: 这些僵尸的 reanim 里没有原版 anim_swim 轨道, 水里只能播走路动画,
+// 这里在水路时给它们放慢动画 + 加一点上下浮动, 看起来更接近"踩水/游泳".
+static bool IZombieIsPoolNightDuckyTubeType(ZombieType theZombieType)
+{
+    return theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
+        theZombieType == ZombieType::ZOMBIE_YETI ||
+        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
+        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER ||
+        theZombieType == ZombieType::ZOMBIE_LADDER ||
+        theZombieType == ZombieType::ZOMBIE_FOOTBALL ||
+        theZombieType == ZombieType::ZOMBIE_IMP;
+}
+
 void Zombie::GetDrawPos(ZombieDrawPosition& theDrawPos)
 {
     theDrawPos.mImageOffsetX = mPosX - mX;
@@ -7419,6 +7432,16 @@ void Zombie::GetDrawPos(ZombieDrawPosition& theDrawPos)
     {
         theDrawPos.mBodyY = -mAltitude;
         theDrawPos.mClipHeight = CLIP_HEIGHT_OFF;
+    }
+
+    // 泳池黑夜: 水路里的"贴图游泳圈"僵尸加一点上下浮动(原版没有 anim_swim, 只能靠这种方式接近踩水)
+    if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mInPool && IZombieIsPoolNightDuckyTubeType(mZombieType))
+    {
+        Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+        if (aBodyReanim != nullptr)
+        {
+            theDrawPos.mImageOffsetY += sinf(aBodyReanim->mAnimTime * 12.5663706f) * 3.0f;
+        }
     }
 }
 
@@ -8276,7 +8299,13 @@ void Zombie::ApplyAnimRate(float theAnimRate)
     Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
     if (aBodyReanim)
     {
-        aBodyReanim->mAnimRate = IsMovingAtChilledSpeed() && mZombiePhase != ZombiePhase::PHASE_ZOMBIE_DYING ? theAnimRate * 0.5f : theAnimRate;
+        float aRate = IsMovingAtChilledSpeed() && mZombiePhase != ZombiePhase::PHASE_ZOMBIE_DYING ? theAnimRate * 0.5f : theAnimRate;
+
+        // 泳池黑夜: 水路里没有原版 anim_swim 的僵尸放慢动作, 配合浮动看起来像在划水而不是走路
+        if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mInPool && IZombieIsPoolNightDuckyTubeType(mZombieType))
+            aRate *= 0.55f;
+
+        aBodyReanim->mAnimRate = aRate;
     }
 }
 
