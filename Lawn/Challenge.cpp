@@ -5669,6 +5669,11 @@ void Challenge::IZombieInitLevel()
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
 
+		// 增强 / 困难 / 泳池黑夜: 特殊阵型概率 40%, 且主题按"越久没出现越容易"加权、禁止连续三把同一主题;
+		// 原版 IZE 无尽和满花保持原版: 特殊阵型 1/5、主题均匀随机, 不做记录.
+		bool aUseThemeWeights = mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
+			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+
 		// 增强 / 困难 / 泳池黑夜: 特殊阵型概率提高到 40%(其它模式维持原版 1/5)
 		bool aSpecialFormation;
 		if (aForcedFormation >= 0)
@@ -5688,7 +5693,7 @@ void Challenge::IZombieInitLevel()
 		int aThemeId = -1;
 		if (aSpecialFormation)
 		{
-			aFormationType = aForcedFormation >= 0 ? aForcedFormation : IZombiePickThemeId(true);
+			aFormationType = aForcedFormation >= 0 ? aForcedFormation : (aUseThemeWeights ? IZombiePickThemeId(true) : RandRangeInt(0, 4));
 			aThemeId = aFormationType;
 			switch (aFormationType)
 			{
@@ -5721,7 +5726,7 @@ void Challenge::IZombieInitLevel()
 				aFormationType = aForcedFormation == 5 ? 0 : aForcedFormation == 6 ? 3 : 5;
 				aThemeId = aForcedFormation;
 			}
-			else
+			else if (aUseThemeWeights)
 			{
 				// 非特殊阵型: 按主题权重抽 综合(5)/控制(6)/即死(7) 之一, 再映射到内部阵型类型
 				aThemeId = IZombiePickThemeId(false);
@@ -5731,6 +5736,11 @@ void Challenge::IZombieInitLevel()
 					aFormationType = RandRangeInt(3, 4);
 				else
 					aFormationType = 5;
+			}
+			else
+			{
+				// 原版 / 满花: 维持原版均匀随机(不记录主题, 不影响加权模式的历史)
+				aFormationType = RandRangeInt(0, 5);
 			}
 			switch (aFormationType)
 			{
@@ -5774,7 +5784,8 @@ void Challenge::IZombieInitLevel()
 				break;
 			}
 		}
-		IZombieRecordTheme(aThemeId);
+		if (aUseThemeWeights)
+			IZombieRecordTheme(aThemeId);
 
 		// 泳池黑夜: 标准 25 株之后按原有比例补足 6 行 x 5 列 = 30 株主体
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
