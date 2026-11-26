@@ -2991,32 +2991,27 @@ void Zombie::UpdateZombieSquashHead()
             mBoard->ShakeBoard(1, 4);
             mApp->PlayFoley(FoleyType::FOLEY_THUMP);
 
-            // 泳池黑夜: 砸在水路上时不让倭瓜停在水平面上, 而是在落点溅起水花, 并让它继续往下沉一点再消失
+            // 泳池黑夜: 参考植物倭瓜砸进水里 —— 溅水花 + 落水音, 倭瓜直接没入水里消失(不再像砸在平地上)
             if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
                 mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL)
             {
-                mPhaseCounter = 30;
-                int aSplashRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-                Reanimation* aSplashReanim = mApp->AddReanimation(aDestX - 20.0f, mY + 78.0f, aSplashRenderOrder, ReanimationType::REANIM_SPLASH);
-                if (aSplashReanim != nullptr)
-                    aSplashReanim->OverrideScale(1.1f, 0.8f);
-                mApp->AddTodParticle(aDestX + 20.0f, mY + 120.0f, aSplashRenderOrder, ParticleEffect::PARTICLE_PLANTING_POOL);
-                mApp->AddTodParticle(aDestX + 20.0f, mY + 120.0f, aSplashRenderOrder, ParticleEffect::PARTICLE_POOL_SPLASH);
-                mApp->PlayFoley(FoleyType::FOLEY_PLANT_WATER);
+                mApp->AddReanimation(mX - 11.0f, mY + 20.0f, mRenderOrder + 1, ReanimationType::REANIM_SPLASH);
+                mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
+                mApp->PlaySample(SOUND_ZOMBIESPLASH);
+
+                Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
+                if (aHeadReanim != nullptr)
+                    aHeadReanim->ReanimationDie();
+                mSpecialHeadReanimID = ReanimationID::REANIMATIONID_NULL;
+
+                TakeDamage(1800, 9U);
+                return;
             }
         }
     }
 
     if (mZombiePhase == ZombiePhase::PHASE_SQUASH_DONE_FALLING)
     {
-        // 泳池黑夜: 倭瓜砸进水里后继续下沉(而不是停在落点), 很快就没入水面消失
-        if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
-            mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL)
-        {
-            Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
-            if (aHeadReanim != nullptr)
-                aHeadReanim->mOverlayMatrix.m12 += 2.0f;
-        }
 
         if (mPhaseCounter == 0)
         {
@@ -4806,15 +4801,21 @@ void Zombie::UpdateLadder()
     }
 }
 
-// 本路是否还有没被吃掉的脑子(IZE). 只看这一行: 上下相邻行的脑子不归本路僵尸管,
-// 否则别行的脑子没吃完时会把本路的舞王/伴舞冻住.
-static bool IZombieHasBrainAtRow(Board* theBoard, int theRow)
+// 本行或上下相邻行是否还有没被吃掉的脑子(IZE).
+// 舞王需要管这三行(否则会把上下两行的脑子漏掉); 伴舞不做任何脑子检测, 只跟着舞王.
+static bool IZombieHasBrainNearRow(Board* theBoard, int theRow)
 {
-    if (theRow < 0 || theRow >= MAX_GRID_SIZE_Y)
-        return false;
+    for (int aRow = theRow - 1; aRow <= theRow + 1; aRow++)
+    {
+        if (aRow < 0 || aRow >= MAX_GRID_SIZE_Y)
+            continue;
 
-    GridItem* aBrain = theBoard->GetGridItemAt(GRIDITEM_IZOMBIE_BRAIN, 0, theRow);
-    return aBrain != nullptr && aBrain->mGridItemState != GRIDITEM_STATE_BRAIN_SQUISHED;
+        GridItem* aBrain = theBoard->GetGridItemAt(GRIDITEM_IZOMBIE_BRAIN, 0, aRow);
+        if (aBrain != nullptr && aBrain->mGridItemState != GRIDITEM_STATE_BRAIN_SQUISHED)
+            return true;
+    }
+
+    return false;
 }
 
 //0x52AA40
@@ -4939,27 +4940,28 @@ void Zombie::UpdateZombieWalking()
         {
             float aNewPosX = mPosX - aSpeed;
 
-            // IZE: 舞王/伴舞只关心**自己这一行**的脑子是否还没吃完(上下相邻行的脑子与本路无关,
-            // 否则别行的脑子没吃完时会把本路队员冻住, 表现为"上方/下方脑子没吃完, 伴舞不向左走").
-            // 自己这一行脑子还在: 舞王停在 -70(20 - 40 - 攻击框x), 伴舞停在自己的进食位置 -30(20 - 攻击框x);
-            // 舞王已停时同路伴舞原地跟停, 保持原有前后队形.
-            if (mApp->IsIZombieLevel() && (mZombieType == ZombieType::ZOMBIE_DANCER || mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER) &&
-                IZombieHasBrainAtRow(mBoard, mRow))
+            // IZE 舞王小队:
+            //  - 舞王检测本行和上下相邻两行, 这三行任何一行还有脑子就不继续往地图外走(防止漏脑子);
+            //  - 伴舞不做任何脑子检测, 只跟着舞王: 舞王停下时原地跟停保持队形, 其它情况正常走.
+            if (mApp->IsIZombieLevel() && (mZombieType == ZombieType::ZOMBIE_DANCER || mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER))
             {
                 const float DANCER_EXTRA_LEFT = 40.0f;
                 if (mZombieType == ZombieType::ZOMBIE_DANCER)
                 {
-                    float aDancerStopX = 20.0f - DANCER_EXTRA_LEFT - mZombieAttackRect.mX;
-                    if (aNewPosX < aDancerStopX)
+                    if (IZombieHasBrainNearRow(mBoard, mRow))
                     {
-                        aNewPosX = aDancerStopX;
+                        float aDancerStopX = 20.0f - DANCER_EXTRA_LEFT - mZombieAttackRect.mX;
+                        if (aNewPosX < aDancerStopX)
+                        {
+                            aNewPosX = aDancerStopX;
+                        }
                     }
                 }
                 else
                 {
                     Zombie* aLeader = mBoard->ZombieTryToGet(mRelatedZombieID);
-                    float aOwnStopX = 20.0f - mZombieAttackRect.mX;
-                    if (aLeader != nullptr && !aLeader->IsDeadOrDying())
+                    if (aLeader != nullptr && !aLeader->IsDeadOrDying() &&
+                        IZombieHasBrainNearRow(mBoard, aLeader->mRow))
                     {
                         float aLeaderStopX = 20.0f - DANCER_EXTRA_LEFT - aLeader->mZombieAttackRect.mX;
                         if (aLeader->mPosX <= aLeaderStopX)
@@ -4967,16 +4969,6 @@ void Zombie::UpdateZombieWalking()
                             // 舞王已停: 伴舞原地跟停, 保持和舞王的相对间隔(前后各 100px 的队形)
                             aNewPosX = mPosX;
                         }
-                        else if (aNewPosX < aOwnStopX)
-                        {
-                            // 舞王还在走: 自己先停在够得到本行脑子的位置, 不越过
-                            aNewPosX = aOwnStopX;
-                        }
-                    }
-                    else if (aNewPosX < aOwnStopX)
-                    {
-                        // 舞王已死: 伴舞各自停在自己够得到本行脑子的位置
-                        aNewPosX = aOwnStopX;
                     }
                 }
             }
@@ -7738,7 +7730,7 @@ void Zombie::Draw(Graphics* g)
     }
 }
 
-// 泳池黑夜: 小鬼/扶梯/橄榄球僵尸的 reanim 没有 duckytube 轨道(普通僵尸靠 reanim 自带的游泳圈轨道),
+// 泳池黑夜: 小鬼僵尸的 reanim 没有 duckytube 轨道(普通僵尸靠 reanim 自带的游泳圈轨道),
 // 这里用现成的游泳圈贴图给它们补一个, 当作"长在身上"的一部分来画:
 // 位置/缩放/朝向都取本体 reanim 的最终变换(含缩放、镜像、入水时的 mBodyY), 再叠加一个固定的腰部局部位移,
 // 因此会跟着本体走、跟着上下起伏; 这个模式里始终显示(上岸也不消失), 只有尸体/死亡状态不画.
@@ -7761,16 +7753,7 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
         aLocalCenterY = 84.0f;
         aTypeScale = 0.64f;
         break;
-    case ZombieType::ZOMBIE_LADDER:
-        aLocalCenterX = 42.0f;
-        aLocalCenterY = 66.0f;
-        aTypeScale = 0.92f;
-        break;
-    case ZombieType::ZOMBIE_FOOTBALL:
-        aLocalCenterX = 58.0f;
-        aLocalCenterY = 70.0f;
-        aTypeScale = 1.12f;
-        break;
+
     default:
         return;
     }
@@ -7785,8 +7768,6 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
     switch (mZombieType)
     {
     case ZombieType::ZOMBIE_IMP:        aAnchorTrackName = "Zombie_imp_body2"; break;
-    case ZombieType::ZOMBIE_LADDER:     aAnchorTrackName = "Zombie_ladder_body2"; break;
-    case ZombieType::ZOMBIE_FOOTBALL:   aAnchorTrackName = "zombie_football_lowerbody"; break;
     }
     float aBobX = 0.0f;
     float aBobY = 0.0f;
@@ -8593,13 +8574,11 @@ void Zombie::PoolSplash(bool theInToPoolSound)
 // 在这个模式下允许它们入水, 它们就能正常啃水上的植物.
 bool Zombie::ZombieTypeCanGoInPoolInIZombiePoolNight(ZombieType theZombieType)
 {
+    // 矿工/扶梯/橄榄球按"水路非法"处理(直接淹死), 不在这里放行
     return theZombieType == ZombieType::ZOMBIE_IMP ||
         theZombieType == ZombieType::ZOMBIE_POLEVAULTER ||
         theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
-        theZombieType == ZombieType::ZOMBIE_DIGGER ||
-        theZombieType == ZombieType::ZOMBIE_DOOR ||
-        theZombieType == ZombieType::ZOMBIE_LADDER ||
-        theZombieType == ZombieType::ZOMBIE_FOOTBALL;
+        theZombieType == ZombieType::ZOMBIE_DOOR;
 }
 
 void Zombie::CheckForPool()

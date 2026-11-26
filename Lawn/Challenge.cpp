@@ -4855,7 +4855,8 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
 		mBoard->IsPoolSquare(theGridX, theGridY) &&
 		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER ||
-			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT))
+			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT ||
+			theZombieType == ZOMBIE_LADDER || theZombieType == ZOMBIE_FOOTBALL))
 	{
 		// 冰车下水前可能已经在泳池里留下冰道, 一起清掉, 免得水面上留一块冰
 		if (theZombieType == ZOMBIE_ZAMBONI)
