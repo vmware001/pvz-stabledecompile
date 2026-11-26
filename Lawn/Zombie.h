@@ -192,6 +192,7 @@ public:
     bool                            mNoSquishSound;         // 冰车/投篮车碾压: 自己不播倭瓜的闷响, 由车辆播 FOLEY_SPLAT
     int                             mSquishedCountdown;
     MemoryImage*                    mSquishedImage;         // 被压扁时的姿态快照(含朝向/防具, 已纵向压扁)
+    bool                            mPoolNightDrown;        // 泳池黑夜: 由 Challenge 放置后从水面(高度0)被拖下水的僵尸, 由 Zombie 侧负责沉没与消失
 
 public:
     Zombie();
@@ -207,6 +208,7 @@ public:
     /*inline*/ void                 DieWithLoot();
     void                            Squish();               // 倭瓜击杀的动画表现: 压扁图案停留后消失
     void                            Draw(Graphics* g);
+    void                            DrawIZombiePoolNightDuckyTube(Graphics* g);
     void                            DrawZombie(Graphics* g, const ZombieDrawPosition& theDrawPos);
     void                            DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawPos);
     void                            DrawZombiePart(Graphics* g, Image* theImage, int theFrame, int theRow, const ZombieDrawPosition& theDrawPos);
@@ -229,6 +231,7 @@ public:
     void                            UpdateZombieRiseFromGrave();
     void                            UpdateDamageStates(unsigned int theDamageFlags);
     void                            UpdateZombiePool();
+    void                            UpdatePoolNightDrown();
     void                            CheckForPool();
     void                            GetDrawPos(ZombieDrawPosition& theDrawPos);
     void                            UpdateZombieHighGround();

@@ -2888,6 +2888,23 @@ void Plant::Squish()
     if (mSeedType == SeedType::SEED_SQUASH && mState != PlantState::STATE_NOTREADY)
         return;
 
+    // 泳池黑夜: 水路(泳池行)上的植物被砸扁时不显示压扁尸体, 改为"砸进水里"的水花效果
+    if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mBoard != nullptr &&
+        mRow >= 0 && mRow < MAX_GRID_SIZE_Y && mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL)
+    {
+        int aSplashRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+        Reanimation* aSplashReanim = mApp->AddReanimation(mX - 23, mY + 7, aSplashRenderOrder, ReanimationType::REANIM_SPLASH);
+        if (aSplashReanim != nullptr)
+            aSplashReanim->OverrideScale(1.3f, 1.3f);
+        mApp->AddTodParticle(mX + 31, mY + 64, aSplashRenderOrder, ParticleEffect::PARTICLE_PLANTING_POOL);
+        mApp->PlayFoley(FoleyType::FOLEY_ZOMBIESPLASH);
+        RemoveEffects();
+        if (mApp->IsIZombieLevel())
+            mBoard->mChallenge->IZombiePlantDropRemainingSun(this);
+        Die();
+        return;
+    }
+
     int offsetLayer = 0;
     if (mSeedType == SEED_PUMPKINSHELL) offsetLayer += 1;
     else if (mSeedType == SEED_FLOWERPOT) offsetLayer -= 1;

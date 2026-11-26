@@ -4819,6 +4819,13 @@ ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 //0x42A0F0
 void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int theGridY)
 {
+	// 泳池黑夜: 撑杆僵尸在水路直接替换成海豚骑士僵尸(海豚本来就是水路单位), 陆地行不受影响
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_POLEVAULTER &&
+		mBoard->IsPoolSquare(theGridX, theGridY))
+	{
+		theZombieType = ZOMBIE_DOLPHIN_RIDER;
+	}
+
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
 	if (theZombieType == ZOMBIE_BUNGEE)
 	{
@@ -4833,38 +4840,48 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
 
-	// 泳池黑夜: 冰车/巨人/舞王放在水路不合理(它们的体积/机制会无视植物), 不直接下水,
-	// 改为在该格生成一棵缠绕水草, 由它把僵尸缠绕拖下水(带缠绕水草动画)淹死.
+	// 泳池黑夜: 撑杆替换出来的海豚骑士直接按"已经在泳池里骑行"初始化(否则它会像陆地海豚一样在岸上走/不下水)
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
+		mBoard->IsPoolSquare(theGridX, theGridY))
+	{
+		aZombie->mInPool = true;
+		aZombie->mAltitude = -40.0f * aZombie->mScaleZombie;
+		aZombie->mZombiePhase = PHASE_DOLPHIN_RIDING;
+		aZombie->mZombieAttackRect = Rect(-29, 0, 70, 115);
+		aZombie->PlayZombieReanim("anim_ride", ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME, 0, 12.0f);
+	}
+	// 泳池黑夜: 冰车/巨人/舞王/矿工/投篮车放在水路不合理(体积/机制会无视植物或无法正常下水),
+	// 不再生成缠绕水草植物实体, 只给僵尸挂上缠绕动画并让它慢慢沉入水底(沉没与死亡由 Zombie 侧处理)
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
 		mBoard->IsPoolSquare(theGridX, theGridY) &&
-		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER))
+		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER ||
+			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT))
 	{
-		Plant* aKelp = mBoard->NewPlant(theGridX, theGridY, SEED_TANGLEKELP);
-		if (aKelp != nullptr)
+		// 冰车下水前可能已经在泳池里留下冰道, 一起清掉, 免得水面上留一块冰
+		if (theZombieType == ZOMBIE_ZAMBONI)
 		{
-			// 直接把这只僵尸指定为缠绕水草的目标(不走索敌, 冰车/巨人/舞王不一定能被索敌选中),
-			// 之后由水草自己的计时流程把它拖下水: 抓取动画 -> DragUnder -> 水花 -> 双方死亡
-			IZombieSetupPlant(aKelp);
-			aKelp->mState = PlantState::STATE_TANGLEKELP_GRABBING;
-			aKelp->mStateCountdown = 100;
-			aKelp->mTargetZombieID = mBoard->ZombieGetID(aZombie);
-			// 冰车下水前可能已经在泳池里留下冰道, 一起清掉, 免得水面上留一块冰
-			if (theZombieType == ZOMBIE_ZAMBONI)
-			{
-				mBoard->mIceTimer[theGridY] = 0;
-				mBoard->mIceMinX[theGridY] = 0;
-			}
-			aZombie->PoolSplash(false);
-			mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
-
-			Reanimation* aGrabReanim = aZombie->AddAttachedReanim(-13.0f, 15.0f, ReanimationType::REANIM_TANGLEKELP);
-			if (aGrabReanim != nullptr)
-			{
-				aGrabReanim->SetFramesForLayer("anim_grab");
-				aGrabReanim->mAnimRate = 24.0f;
-				aGrabReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-			}
+			mBoard->mIceTimer[theGridY] = 0;
+			mBoard->mIceMinX[theGridY] = 0;
 		}
+
+		aZombie->PoolSplash(false);
+		mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
+
+		// 缠绕水草只作为抓取动画挂在僵尸身上, 不生成水草植物实体
+		Reanimation* aGrabReanim = aZombie->AddAttachedReanim(-13.0f, 15.0f, ReanimationType::REANIM_TANGLEKELP);
+		if (aGrabReanim != nullptr)
+		{
+			aGrabReanim->SetFramesForLayer("anim_grab");
+			aGrabReanim->mAnimRate = 24.0f;
+			aGrabReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+		}
+
+		// 进入"被拖下水"状态: mInPool 让 Zombie::UpdateZombiePool 每帧执行 mAltitude--, 僵尸慢慢下沉;
+		// 沉到足够深后的 DieWithLoot 由 Zombie 侧负责, 这里不能直接杀僵尸
+		aZombie->mInPool = true;
+		aZombie->mPoolNightDrown = true;   // 让 Zombie 侧强制走"只下沉"路径(矿工等类型逻辑不会再把它拽回走路)
+		aZombie->mAltitude = 0.0f;
+		aZombie->mZombieHeight = ZombieHeight::HEIGHT_DRAGGED_UNDER;
 	}
 }
 
@@ -5009,7 +5026,11 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 			bool aFree = aSq != GridSquareType::GRIDSQUARE_NONE && aSq != GridSquareType::GRIDSQUARE_DIRT &&
 				!mBoard->IsIceAt(aCol, aRow) &&
 				mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr;
-			if (aFree)
+			// 泳池黑夜: 土豆地雷/地刺不能放在水路格, 只在陆地行选落点(其它模式与其它植物不受影响)
+			bool aDisallowedOnPool = aGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+				(theSeedType == SEED_POTATOMINE || theSeedType == SEED_SPIKEWEED) &&
+				mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL;
+			if (aFree && !aDisallowedOnPool)
 			{
 				// 坚果和火炬树桩只会出现在靠右侧的 3 列；强化和增强模式的裂荚射手不会出现在首列
 				bool aRestrictSplitPea = (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
@@ -5328,6 +5349,11 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		{
 			if (!IZombieIsOutputPlant(aOldTypes[j]))
 				continue;
+			// 泳池黑夜: 无效火炬落在泳池格时, 不能被替换成土豆地雷(它只能种在陆地行)
+			if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+				aOldTypes[j] == SEED_POTATOMINE &&
+				mBoard->mPlantRow[aRows[i]] == PlantRowType::PLANTROW_POOL)
+				continue;
 			bool aAlreadyListed = false;
 			for (int k = 0; k < aCandidateCount; k++)
 				aAlreadyListed |= aCandidates[k] == aOldTypes[j];
@@ -5375,6 +5401,11 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				{
 					if (aOccupied[aCol][aRow] || mBoard->IsIceAt(aCol, aRow) ||
 						mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
+						continue;
+					// 泳池黑夜: 被重定位的土豆地雷/地刺同样只能落在陆地行
+					if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+						(aPlant->mSeedType == SEED_POTATOMINE || aPlant->mSeedType == SEED_SPIKEWEED) &&
+						mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL)
 						continue;
 					aPlant->mPlantCol = aCol;
 					aPlant->mRow = aRow;
@@ -5663,6 +5694,19 @@ void Challenge::IZombieStart()
 //0x42B340
 void Challenge::IZombieUpdate()
 {
+	// 泳池黑夜: 冰车被拖下水的几帧里仍会持续铺冰, 水路上不应出现冰道, 每帧清掉泳池行的冰
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+	{
+		for (int aRow = 0; aRow < MAX_GRID_SIZE_Y; aRow++)
+		{
+			if (mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL)
+			{
+				mBoard->mIceTimer[aRow] = 0;
+				mBoard->mIceMinX[aRow] = BOARD_ICE_START;
+			}
+		}
+	}
+
 	int aSunMoney = mBoard->mSunMoney + mBoard->CountSunBeingCollected();
 
 	Zombie* aZombie = nullptr;
