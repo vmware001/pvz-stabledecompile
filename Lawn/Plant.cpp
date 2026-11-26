@@ -4297,7 +4297,8 @@ float PlantDrawHeightOffset(Board* theBoard, Plant* thePlant, SeedType theSeedTy
     }
     else if (theBoard->IsPoolSquare(theCol, theRow) || theBoard->mBackground == BackgroundType::BACKGROUND_ZOMBIQUARIUM && gLawnApp->mDialogMap.size() == 0)
     {
-        doFloating = true;
+        // IZE 泳池黑夜: 水路上的植物(含睡莲)不上下浮动, 保持和其它 IZE 模式一样的静止构图
+        doFloating = !(theBoard->mApp != nullptr && theBoard->mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT);
     }
 
     if (doFloating && !neverFloat)

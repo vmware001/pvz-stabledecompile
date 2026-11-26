@@ -8388,9 +8388,29 @@ void Zombie::PoolSplash(bool theInToPoolSound)
 }
 
 //0x52F870
+// IZE 泳池黑夜: 这些僵尸原本被判定为"不能进泳池", 于是 mInPool 一直是 false,
+// 而 CanTargetPlant 会用 "!mInPool && 水上植物" 直接拒绝锁定 -> 表现为无视水路上的植物.
+// 在这个模式下允许它们入水, 它们就能正常啃水上的植物.
+bool Zombie::ZombieTypeCanGoInPoolInIZombiePoolNight(ZombieType theZombieType)
+{
+    return theZombieType == ZombieType::ZOMBIE_IMP ||
+        theZombieType == ZombieType::ZOMBIE_POLEVAULTER ||
+        theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_DIGGER ||
+        theZombieType == ZombieType::ZOMBIE_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_LADDER ||
+        theZombieType == ZombieType::ZOMBIE_FOOTBALL;
+}
+
 void Zombie::CheckForPool()
 {
-    if (!Zombie::ZombieTypeCanGoInPool(mZombieType) || IsFlying())
+    bool aCanGoInPool = Zombie::ZombieTypeCanGoInPool(mZombieType);
+    if (!aCanGoInPool && mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+        Zombie::ZombieTypeCanGoInPoolInIZombiePoolNight(mZombieType))
+    {
+        aCanGoInPool = true;
+    }
+    if (!aCanGoInPool || IsFlying())
     {
         return;
     }

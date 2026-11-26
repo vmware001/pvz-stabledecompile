@@ -4832,6 +4832,40 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	{
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
+
+	// 泳池黑夜: 冰车/巨人/舞王放在水路不合理(它们的体积/机制会无视植物), 不直接下水,
+	// 改为在该格生成一棵缠绕水草, 由它把僵尸缠绕拖下水(带缠绕水草动画)淹死.
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+		mBoard->IsPoolSquare(theGridX, theGridY) &&
+		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER))
+	{
+		Plant* aKelp = mBoard->NewPlant(theGridX, theGridY, SEED_TANGLEKELP);
+		if (aKelp != nullptr)
+		{
+			// 直接把这只僵尸指定为缠绕水草的目标(不走索敌, 冰车/巨人/舞王不一定能被索敌选中),
+			// 之后由水草自己的计时流程把它拖下水: 抓取动画 -> DragUnder -> 水花 -> 双方死亡
+			IZombieSetupPlant(aKelp);
+			aKelp->mState = PlantState::STATE_TANGLEKELP_GRABBING;
+			aKelp->mStateCountdown = 100;
+			aKelp->mTargetZombieID = mBoard->ZombieGetID(aZombie);
+			// 冰车下水前可能已经在泳池里留下冰道, 一起清掉, 免得水面上留一块冰
+			if (theZombieType == ZOMBIE_ZAMBONI)
+			{
+				mBoard->mIceTimer[theGridY] = 0;
+				mBoard->mIceMinX[theGridY] = 0;
+			}
+			aZombie->PoolSplash(false);
+			mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
+
+			Reanimation* aGrabReanim = aZombie->AddAttachedReanim(-13.0f, 15.0f, ReanimationType::REANIM_TANGLEKELP);
+			if (aGrabReanim != nullptr)
+			{
+				aGrabReanim->SetFramesForLayer("anim_grab");
+				aGrabReanim->mAnimRate = 24.0f;
+				aGrabReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+			}
+		}
+	}
 }
 
 //0x42A210

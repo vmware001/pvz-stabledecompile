@@ -420,6 +420,7 @@ public:
     void                            DoDaisies();
     static /*inline*/ bool          ZombieTypeCanGoOnHighGround(ZombieType theZombieType);
     static /*inline*/ bool          ZombieTypeCanGoInPool(ZombieType theZombieType);
+    static bool                     ZombieTypeCanGoInPoolInIZombiePoolNight(ZombieType theZombieType);
     void                            SetupWaterTrack(const char* theTrackName);
     void                            BurnRow(int theRow);
     void                            SetupReanimForLostHead();
