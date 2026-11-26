@@ -5183,15 +5183,30 @@ static bool IZombieCantHavePumpkin(SeedType theSeedType)
     }
 }
 
-// 小喷菇 50% 替换用的攻击性植物候选(黑夜增强/黑夜困难/黑夜泳池)
-static SeedType IZombiePickAttackingPlantForPuffshroom()
+// 小喷菇 50% 替换用的攻击性植物候选(黑夜增强/黑夜困难/黑夜泳池);
+// 每种植物本关最多替换一次(比如不能同时出现两个仙人掌), 候选用完就不再替换.
+static SeedType IZombiePickAttackingPlantForPuffshroom(bool* theUsed)
 {
     static const SeedType aCandidates[] =
     {
         SEED_PEASHOOTER, SEED_SNOWPEA, SEED_REPEATER, SEED_THREEPEATER, SEED_SPLITPEA,
-        SEED_CACTUS, SEED_STARFRUIT, SEED_CABBAGEPULT, SEED_KERNELPULT, SEED_CHOMPER,
+        SEED_CACTUS, SEED_STARFRUIT, SEED_CABBAGEPULT, SEED_KERNELPULT,
+        SEED_FUMESHROOM, SEED_MELONPULT,
     };
-    return aCandidates[Rand((int)(sizeof(aCandidates) / sizeof(aCandidates[0])))];
+    const int aCount = (int)(sizeof(aCandidates) / sizeof(aCandidates[0]));
+    int aAvailable[32];
+    int aAvailableCount = 0;
+    for (int i = 0; i < aCount; i++)
+    {
+        if (!theUsed[aCandidates[i]])
+            aAvailable[aAvailableCount++] = aCandidates[i];
+    }
+    if (aAvailableCount == 0)
+        return SEED_NONE;
+
+    SeedType aPicked = (SeedType)aAvailable[Rand(aAvailableCount)];
+    theUsed[aPicked] = true;
+    return aPicked;
 }
 
 static bool IZombieIsOutputPlant(SeedType theSeedType)
@@ -5235,6 +5250,7 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	bool aGloomshroomReplaced = false;
 	int aPiercingGloomshroomCount = 0;
 	int aCattailCount = 0;
+	bool aPuffshroomUsed[NUM_SEED_TYPES] = {};   // 小喷菇替换: 每种攻击性植物本关最多用一次
 	Plant* aPlant = nullptr;
 	while (mBoard->IteratePlants(aPlant))
 	{
@@ -5271,7 +5287,9 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				(mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
 					mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT) && Rand(100) < 50)
 			{
-				aNewType = IZombiePickAttackingPlantForPuffshroom();
+				SeedType aPuffReplacement = IZombiePickAttackingPlantForPuffshroom(aPuffshroomUsed);
+				if (aPuffReplacement != SEED_NONE)
+					aNewType = aPuffReplacement;
 			}
 
 			// 控制主题(forced 6 -> 阵型类型 3/4): 第 11 轮起双发射手 30% -> 机枪射手
