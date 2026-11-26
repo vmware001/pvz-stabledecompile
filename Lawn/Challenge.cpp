@@ -5158,6 +5158,31 @@ void Challenge::IZombiePlaceExtraPlants(int theTargetPlantCount)
 
 int gIZombieNextFormation = -1;
 
+// 这些植物不能套南瓜头: 一次性/地面类植物(土豆雷、猫尾草、地刺、地刺王、一次性爆炸/冰冻/缠绕类)
+static bool IZombieCantHavePumpkin(SeedType theSeedType)
+{
+    switch (theSeedType)
+    {
+    case SEED_CHERRYBOMB:
+    case SEED_JALAPENO:
+    case SEED_SQUASH:
+    case SEED_DOOMSHROOM:
+    case SEED_ICESHROOM:
+    case SEED_POTATOMINE:
+    case SEED_TANGLEKELP:
+    case SEED_SPIKEWEED:
+    case SEED_SPIKEROCK:
+    case SEED_CATTAIL:
+#ifdef _HAS_BLOOM_AND_DOOM_CONTENTS
+    case SEED_CHERRYHOVERBOMB:
+    case SEED_NUKECUMBER:
+#endif
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool IZombieIsOutputPlant(SeedType theSeedType)
 {
 	switch (theSeedType)
@@ -5388,9 +5413,9 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		for (int i = 0; i < aPlantCount && aPumpkinCount < 2; i++)
 		{
 			Plant* aBasePlant = mBoard->GetTopPlantAt(aCols[i], aRows[i], PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-			// 土豆地雷和猫尾草不能套南瓜头
+			// 一次性植物(土豆雷/猫尾草等)和地刺/地刺王不能套南瓜头
 			if (aBasePlant != nullptr && IZombieIsOutputPlant(aBasePlant->mSeedType) &&
-				aBasePlant->mSeedType != SEED_POTATOMINE && aBasePlant->mSeedType != SEED_CATTAIL && Rand(100) < 5)
+				!IZombieCantHavePumpkin(aBasePlant->mSeedType) && Rand(100) < 5)
 			{
 				IZombieSetupPlant(mBoard->NewPlant(aCols[i], aRows[i], SEED_PUMPKINSHELL));
 				aPumpkinCount++;
