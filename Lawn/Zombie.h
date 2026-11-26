@@ -192,8 +192,7 @@ public:
     bool                            mNoSquishSound;         // 冰车/投篮车碾压: 自己不播倭瓜的闷响, 由车辆播 FOLEY_SPLAT
     int                             mSquishedCountdown;
     MemoryImage*                    mSquishedImage;         // 被压扁时的姿态快照(含朝向/防具, 已纵向压扁)
-    bool                            mPoolNightDrown;
-    bool                            mPoolNightDolphinPlaced;   // 泳池黑夜: 海豚骑士由撑杆卡原地放置(手动设成骑行状态)        // 泳池黑夜: 由 Challenge 放置后从水面(高度0)被拖下水的僵尸, 由 Zombie 侧负责沉没与消失
+    bool                            mPoolNightDrown;        // 泳池黑夜: 由 Challenge 放置后从水面(高度0)被拖下水的僵尸, 由 Zombie 侧负责沉没与消失
 
 public:
     Zombie();

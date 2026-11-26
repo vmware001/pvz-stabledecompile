@@ -144,7 +144,6 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mSquishedCountdown = 0;
     mSquishedImage = nullptr;
     mPoolNightDrown = false;
-    mPoolNightDolphinPlaced = false;
     mPhaseCounter = 0;
     mHitUmbrella = false;
     mDroppedLoot = false;
@@ -2145,8 +2144,6 @@ void Zombie::UpdateZombieDolphinRider()
             Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_VAULT);
             if (aPlant && aPlant->mSeedType == SEED_COBCANNON)
                 mPosX -= mX - aPlant->mX + 56;
-            else if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mPoolNightDolphinPlaced)
-                mPosX -= 24.0f;   // 原地放置的海豚骑士: 落地后绘制偏移 +70 会消失, 这里少走 70 以保持落点正确
             else
                 mPosX -= 94.0f;
             mAltitude = 0.0f;

@@ -4824,6 +4824,8 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		theZombieType = ZOMBIE_DOLPHIN_RIDER;
+		// 海豚的落点会往左偏一格: 把它往右挪一列放(用户在第六列放, 实际放在第七列), 落点正好回到用户放的那一格
+		theGridX = min(theGridX + 1, 8);
 	}
 
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
@@ -4846,7 +4848,6 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		aZombie->mInPool = true;
-		aZombie->mPoolNightDolphinPlaced = true;
 		aZombie->mAltitude = 0.0f;
 		aZombie->mPosX -= 70.0f;
 		aZombie->mZombiePhase = PHASE_DOLPHIN_RIDING;
