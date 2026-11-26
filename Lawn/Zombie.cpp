@@ -8641,11 +8641,18 @@ void Zombie::PoolSplash(bool theInToPoolSound)
 // 在这个模式下允许它们入水, 它们就能正常啃水上的植物.
 bool Zombie::ZombieTypeCanGoInPoolInIZombiePoolNight(ZombieType theZombieType)
 {
-    // 矿工/扶梯/橄榄球按"水路非法"处理(直接淹死), 不在这里放行
+    // 矿工/跳跳/冰车/巨人/投篮车/舞王按"水路非法"处理(直接淹死), 不在这里放行;
+    // 扶梯/橄榄球/读报/雪人/小丑/伴舞已经有贴图版游泳圈, 允许入水.
     return theZombieType == ZombieType::ZOMBIE_IMP ||
         theZombieType == ZombieType::ZOMBIE_POLEVAULTER ||
         theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
-        theZombieType == ZombieType::ZOMBIE_DOOR;
+        theZombieType == ZombieType::ZOMBIE_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_LADDER ||
+        theZombieType == ZombieType::ZOMBIE_FOOTBALL ||
+        theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
+        theZombieType == ZombieType::ZOMBIE_YETI ||
+        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
+        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER;
 }
 
 void Zombie::CheckForPool()
