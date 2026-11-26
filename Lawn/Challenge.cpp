@@ -5679,6 +5679,12 @@ GridItem* Challenge::IZombieGetBrainTarget(Zombie* theZombie)
 	{
 		aZombieRect.mX += 25;
 	}
+	// 舞王比其它僵尸多走一点(40px)再开始吃, 让它停得靠左一些; 伴舞的吃脑判定保持原版,
+	// 它们跟停后脑子在身后, 靠脑子够大的判定箱照样吃得到. 其它僵尸不受影响.
+	if (theZombie->mZombieType == ZOMBIE_DANCER)
+	{
+		aZombieRect.mX += 40;
+	}
 
 	if (aZombieRect.mX > 20)
 		return nullptr;

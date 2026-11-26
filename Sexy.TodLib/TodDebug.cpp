@@ -136,6 +136,7 @@ void TodLogString(const char* theMsg)
 	{
 		OutputDebugString(_S("Failed to open log file\n"));
 		printf(_S("Failed to open log file\n"));
+		return;
 	}
 
 	if (fwrite(theMsg, strlen(theMsg), 1, f) != 1)

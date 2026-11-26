@@ -1885,6 +1885,12 @@ Zombie* Plant::FindSquashTarget()
             continue;
         }
 
+        // IZE: 地图左边缘啃脑子的僵尸只由第一列植物处置(同 FindTargetZombie 中的判定)
+        if (mPlantCol > 0 && aZombie->mIsEating && mApp->IsIZombieLevel() && aZombie->mPosX < 20.0f)
+        {
+            continue;
+        }
+
         bool IsZombieLeaping =
             (aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT && aZombie->GetZombieRect().mX >= mX + 20) ||
             (aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT ||
@@ -6288,6 +6294,13 @@ Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon)
 
             if (mSeedType == SeedType::SEED_POTATOMINE)
             {
+                // IZE: 在地图左边缘啃脑子的僵尸站位在草坪左边界之外, 进食时额外增加的范围
+                // 加上原版土豆雷向左扩展的 40px, 会让第二列及以后的土豆雷隔着整列白白引爆;
+                // 这种位置只允许最左一列土豆雷按基础射程处理 (脑子已被吃掉但僵尸仍在进食
+                // 动画时同样适用). 只限定土豆雷, 其他植物(裂荚射手等)的判定保持原版.
+                if (mPlantCol > 0 && aZombie->mIsEating && mApp->IsIZombieLevel() && aZombie->mPosX < 20.0f)
+                    continue;
+
                 if (mBoard->GetFlowerPotAt(mPlantCol, mRow) && aZombie->mZombiePhase == PHASE_DIGGER_TUNNELING)
                     continue;
 
@@ -6341,6 +6354,18 @@ Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon)
             }
 
             ////////////////////
+
+#ifdef _DEBUG
+            // IZE 调试日志(仅 Debug 构建): 记录地图左边缘僵尸被土豆雷/裂荚射手判定命中的情况,
+            // 用来确认"第一列土豆雷正常引爆、第二列及以后不误触"以及裂荚射手左侧索敌是否正常.
+            if (mApp->IsIZombieLevel() && aZombie->mPosX < 40.0f &&
+                (mSeedType == SeedType::SEED_POTATOMINE || mSeedType == SeedType::SEED_SPLITPEA))
+            {
+                TodTraceAndLog("TARGET seed=%d col=%d row=%d plantx=%d atk=%d..%d ztype=%d zx=%.1f zbody=%d..%d eat=%d",
+                    (int)mSeedType, mPlantCol, mRow, mX, aAttackRect.mX, aAttackRect.mX + aAttackRect.mWidth,
+                    (int)aZombie->mZombieType, aZombie->mPosX, aZombieRect.mX, aZombieRect.mX + aZombieRect.mWidth, aZombie->mIsEating);
+            }
+#endif
 
             int aWeight = -aZombieRect.mX;
             if (mSeedType == SeedType::SEED_CATTAIL 
@@ -6505,12 +6530,12 @@ int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
     case SeedType::SEED_ZOMBIE_DIGGER:              return 125;
     case SeedType::SEED_ZOMBIE_BUNGEE:              return 100;
     case SeedType::SEED_ZOMBIE_FOOTBALL:            return 175;
-    case SeedType::SEED_ZOMBIE_BALLOON:             return 200;
+    case SeedType::SEED_ZOMBIE_BALLOON:             return 175;
     case SeedType::SEED_ZOMBIE_SCREEN_DOOR:         return 125;
     case SeedType::SEED_ZOMBONI:                    return 175;
     case SeedType::SEED_ZOMBIE_POGO:                return 200;
     case SeedType::SEED_ZOMBIE_DANCER:              return 350;
-    case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 225;
+    case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 200;
     case SeedType::SEED_ZOMBIE_IMP:                 return 50;
     default:
     {

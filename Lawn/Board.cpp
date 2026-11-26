@@ -7491,6 +7491,16 @@ void Board::DrawGameObjects(Graphics* g)
 
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_BACKDROP, MakeRenderOrder(RenderLayer::RENDER_LAYER_UI_BOTTOM, 0, 0));
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_BOTTOM_UI, aZPos);
+		// 卡槽/铲子/右上角按钮: 平时保持原层级(第一路巨人会盖住卡槽), 鼠标移到卡槽上时抬到僵尸之上
+		int aSeedBankZ = aZPos + 1;
+		if ((mApp->mGameScene == GameScenes::SCENE_PLAYING || mApp->mGameScene == GameScenes::SCENE_ZOMBIES_WON) &&
+			mWidgetManager != nullptr && mWidgetManager->mMouseIn &&
+			mSeedBank->ContainsPoint(mWidgetManager->mLastMouseX - mX - mApp->mDDInterface->mWideScreenOffsetX,
+				mWidgetManager->mLastMouseY - mY - mApp->mDDInterface->mWideScreenOffsetY))
+		{
+			aSeedBankZ = MakeRenderOrder(RenderLayer::RENDER_LAYER_UI_TOP, 0, -1);
+		}
+		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_SEED_BANK_UI, aSeedBankZ);
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_COVER, MakeRenderOrder(RenderLayer::RENDER_LAYER_ZOMBIE, 6, 9));
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_FOREGROUND, MakeRenderOrder(RenderLayer::RENDER_LAYER_FOG, 0, 1));
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_COIN_BANK, MakeRenderOrder(RenderLayer::RENDER_LAYER_COIN_BANK, 0, 0));
@@ -7703,6 +7713,10 @@ void Board::DrawGameObjects(Graphics* g)
 		
 		case RenderObjectType::RENDER_ITEM_TOP_UI:
 			DrawUITop(g);
+			break;
+
+		case RenderObjectType::RENDER_ITEM_SEED_BANK_UI:
+			DrawSeedBankUI(g);
 			break;
 			
 		case RenderObjectType::RENDER_ITEM_FOG:
@@ -8802,12 +8816,6 @@ void Board::DrawUIBottom(Graphics* g)
 
 	if (mApp->mGameScene != GameScenes::SCENE_ZOMBIES_WON)
 	{
-		if (!mApp->IsScreenSaver() && mSeedBank->BeginDraw(g))
-		{
-			mSeedBank->Draw(g);
-			mSeedBank->EndDraw(g);
-		}
-
 #ifdef _DS_MINIGAMES
 		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_HEAT_WAVE && mApp->mGameScene == SCENE_PLAYING) {
 			int aCelWidth = Sexy::IMAGE_FLAGMETER->GetCelWidth();
@@ -8868,6 +8876,16 @@ void Board::DrawUIBottom(Graphics* g)
 		{
 			mAdvice->Draw(g);
 		}
+	}
+}
+
+// 卡槽、铲子、右上角按钮单独一层: 游玩时画在僵尸之上(见 DrawGameObjects 的 RENDER_ITEM_SEED_BANK_UI)
+void Board::DrawSeedBankUI(Graphics* g)
+{
+	if (mApp->mGameScene != GameScenes::SCENE_ZOMBIES_WON && !mApp->IsScreenSaver() && mSeedBank->BeginDraw(g))
+	{
+		mSeedBank->Draw(g);
+		mSeedBank->EndDraw(g);
 	}
 
 	DrawShovel(g);

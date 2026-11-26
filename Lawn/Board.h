@@ -362,6 +362,7 @@ public:
 	void							ZombiesWon(Zombie* theZombie = nullptr);
 	void							DrawLevel(Graphics* g);
 	void							DrawShovel(Graphics* g);
+	void							DrawSeedBankUI(Graphics* g);
 	void							UpdateZombieSpawning();
 	void							UpdateSunSpawning();
 	/*inline*/ void					ClearAdvice(AdviceType theHelpIndex);

@@ -139,6 +139,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
     mZombieHeight = ZombieHeight::HEIGHT_ZOMBIE_NORMAL;
     mSquished = false;
+    mNoSquishSound = false;
     mSquishedCountdown = 0;
     mSquishedImage = nullptr;
     mPhaseCounter = 0;
@@ -4653,11 +4654,14 @@ void Zombie::CrushCharmedZombies()
         if (aOverlapX < VEHICLE_CRUSH_OVERLAP)
             continue;
 
+        aZombie->mNoSquishSound = true;
         aZombie->TakeDamage(1800, 18U | (1U << DamageFlags::DAMAGE_SQUISH_ON_HIT));
+        aZombie->mNoSquishSound = false;
         if (!aZombie->mSquished)
             continue;
 
-        // 额外播放小推车压过的效果(尘土 + 云团), 压扁尸体仍由 Squish 生成, 不替换
+        // 额外播放小推车压过的效果: 碾过的音效 + 尘土/云团, 压扁尸体仍由 Squish 生成, 不替换
+        mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
         Reanimation* aPuffReanim = mApp->AddReanimation(aZombie->mPosX - 73.0f, aZombie->mPosY - 56.0f, aZombie->mRenderOrder + 2, ReanimationType::REANIM_PUFF);
         aPuffReanim->SetFramesForLayer("anim_puff");
         mApp->AddTodParticle(aZombie->mPosX + 110.0f, aZombie->mPosY, aZombie->mRenderOrder + 1, ParticleEffect::PARTICLE_MOWER_CLOUD);
@@ -4714,6 +4718,22 @@ void Zombie::UpdateLadder()
             }
         }
     }
+}
+
+// 本行或上下相邻路是否还有没被吃掉的脑子(IZE)
+static bool IZombieHasBrainNearRow(Board* theBoard, int theRow)
+{
+    for (int aRow = theRow - 1; aRow <= theRow + 1; aRow++)
+    {
+        if (aRow < 0 || aRow >= MAX_GRID_SIZE_Y)
+            continue;
+
+        GridItem* aBrain = theBoard->GetGridItemAt(GRIDITEM_IZOMBIE_BRAIN, 0, aRow);
+        if (aBrain != nullptr && aBrain->mGridItemState != GRIDITEM_STATE_BRAIN_SQUISHED)
+            return true;
+    }
+
+    return false;
 }
 
 //0x52AA40
@@ -4836,7 +4856,51 @@ void Zombie::UpdateZombieWalking()
         }
         else
         {
-            mPosX -= aSpeed;
+            float aNewPosX = mPosX - aSpeed;
+
+            // IZE: 本路或上下两路的脑子还没吃完时, 舞王小队要整队停住, 不能继续往地图外走,
+            // 也不能为了吃脑各自散开. 舞王比其它僵尸多走 40px 再停(见 IZombieGetBrainTarget),
+            // 停得靠左一些; 舞王一停, 伴舞原地跟停, 保持和舞王的相对间隔(前后各 100px 的队形).
+            // 伴舞的吃脑判定保持原版: 它们跟停后脑子就在身后, 靠脑子够大的判定箱照样吃得到.
+            if (mApp->IsIZombieLevel() && (mZombieType == ZombieType::ZOMBIE_DANCER || mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER))
+            {
+                Zombie* aLeader = this;
+                if (mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER)
+                {
+                    aLeader = mBoard->ZombieTryToGet(mRelatedZombieID);
+                }
+
+                const float DANCER_EXTRA_LEFT = 40.0f;
+                if (aLeader != nullptr && !aLeader->IsDeadOrDying())
+                {
+                    if (IZombieHasBrainNearRow(mBoard, aLeader->mRow))
+                    {
+                        float aLeaderStopX = 20.0f - DANCER_EXTRA_LEFT - aLeader->mZombieAttackRect.mX;
+                        if (mZombieType == ZombieType::ZOMBIE_DANCER)
+                        {
+                            if (aNewPosX < aLeaderStopX)
+                            {
+                                aNewPosX = aLeaderStopX;
+                            }
+                        }
+                        else if (aLeader->mPosX <= aLeaderStopX)
+                        {
+                            // 舞王已停: 伴舞原地跟停, 保持队形
+                            aNewPosX = mPosX;
+                        }
+                    }
+                }
+                else if (IZombieHasBrainNearRow(mBoard, mRow))
+                {
+                    // 舞王已死: 伴舞各自停在自己够得到脑子的位置
+                    float aStopX = 20.0f - mZombieAttackRect.mX;
+                    if (aNewPosX < aStopX)
+                    {
+                        aNewPosX = aStopX;
+                    }
+                }
+            }
+            mPosX = aNewPosX;
         }
 
         if ((mZombieType == ZombieType::ZOMBIE_FOOTBALL
@@ -8856,7 +8920,8 @@ void Zombie::Squish()
 	mRenderOrder = Board::MakeRenderOrder(aCorpseLayer, mRow, aCorpseLayerOffset);
 	StopEating();
 	StopZombieSound();
-	mApp->PlayFoley(FoleyType::FOLEY_THUMP);
+	if (!mNoSquishSound)
+		mApp->PlayFoley(FoleyType::FOLEY_THUMP);
 
 	// 捕获实时姿态快照(含当前防具/朝向/体型)作为压扁图案, 再冻结阶段
 	delete mSquishedImage;
