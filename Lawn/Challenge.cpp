@@ -5230,8 +5230,9 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 					aNewType = SEED_GATLINGPEA;
 			}
 
-			// 控制主题(forced 6 -> 阵型类型 3/4): 和综合/输出主题一样做植物替换(不做裂荚->猫尾草, 避免前几轮就出猫尾草)
-			if ((theFormationType == 3 || theFormationType == 4) &&
+			// 控制主题(forced 6 -> 阵型类型 3/4): 第 11 轮起双发射手 30% -> 机枪射手
+			// (不做裂荚->猫尾草, 避免前几轮就出猫尾草)
+			if ((theFormationType == 3 || theFormationType == 4) && mSurvivalStage >= 10 &&
 				aNewType == aOldType && aOldType == SEED_REPEATER && Rand(100) < 30)
 			{
 				aNewType = SEED_GATLINGPEA;
