@@ -4842,8 +4842,8 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
 
-	// 泳池黑夜: 撑杆替换出来的海豚骑士直接在放卡的那一格按"已经在泳池里骑行"初始化.
-	// 原版入水时 mPosX -= 70、绘制再 +70 抵消; 跳跃落地时绘制偏移会消失, 所以落地位移在 Zombie 侧按标记补偿.
+	// 泳池黑夜: 撑杆替换出来的海豚骑士按"已经在泳池里骑行"初始化.
+	// 原版入水时 mPosX -= 70、绘制再 +70 抵消, 这样骑行时显示在放置格上; 放置列已往右挪一列(见上面的替换分支).
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
