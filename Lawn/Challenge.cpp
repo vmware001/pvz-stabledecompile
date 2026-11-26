@@ -4845,7 +4845,11 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		aZombie->mInPool = true;
-		aZombie->mAltitude = -40.0f * aZombie->mScaleZombie;
+		// 海豚是浮在水面上的: 高度必须是 0(普通僵尸在泳池会沉到 -40, 那样 GetDrawPos 会按 -mAltitude 计算裁剪高度,
+		// 把海豚下半身裁掉, 看起来只剩上半身)
+		aZombie->mAltitude = 0.0f;
+		// GetDrawPos 在海豚骑行阶段会给绘制位置额外 +70 像素(补偿原版入水时的 mPosX -= 70), 这里同步补上
+		aZombie->mPosX -= 70.0f;
 		aZombie->mZombiePhase = PHASE_DOLPHIN_RIDING;
 		aZombie->mZombieAttackRect = Rect(-29, 0, 70, 115);
 		aZombie->PlayZombieReanim("anim_ride", ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME, 0, 12.0f);
