@@ -1079,8 +1079,10 @@ bool LawnHasUsedCheatKeys()
 }
 
 //0x44EAA0
+
 LawnApp::LawnApp()
 {
+
 	mBoard = nullptr;
 	mGameSelector = nullptr;
 	mChallengeScreen = nullptr;
@@ -2943,6 +2945,77 @@ void LawnApp::UpdatePlayTimeStats()
 //0x452650
 void LawnApp::UpdateFrames()
 {
+	// TEMPSAVELOAD: 复现"压扁后存档 -> 销毁关卡 -> 读档继续"崩溃(验证后删除)
+	if (getenv("PVZ_TEST_SAVELOAD") != nullptr && mBoard != nullptr && mGameScene == GameScenes::SCENE_PLAYING)
+	{
+		static int aStep = 0;
+		static int aBaseCounter = -1;
+		static int aPostLoadFrames = 0;
+		if (aBaseCounter < 0 && mBoard->mMainCounter > 60)
+			aBaseCounter = mBoard->mMainCounter;
+		if (aStep >= 3)
+		{
+			aPostLoadFrames++;
+			if (aPostLoadFrames == 1 || aPostLoadFrames == 60 || aPostLoadFrames == 240)
+			{
+				FILE* aLog = fopen("saveload_log.txt", "a");
+				if (aLog)
+				{
+					fprintf(aLog, "post-load frame=%d board=%p scene=%d\n", aPostLoadFrames, (void*)mBoard, (int)mGameScene);
+					if (mBoard != nullptr)
+					{
+						Zombie* aZ = nullptr;
+						int aCount = 0;
+						while (mBoard->IterateZombies(aZ))
+						{
+							aCount++;
+							if (aZ->mSquished || aZ->mSquishedImage != nullptr)
+								fprintf(aLog, "  zombie squished=%d image=%p countdown=%d dead=%d\n", (int)aZ->mSquished, (void*)aZ->mSquishedImage, aZ->mSquishedCountdown, (int)aZ->mDead);
+						}
+						fprintf(aLog, "  total zombies=%d\n", aCount);
+					}
+					fclose(aLog);
+				}
+			}
+		}
+		else if (aBaseCounter >= 0)
+		{
+			int aElapsed = mBoard->mMainCounter - aBaseCounter;
+			if (aStep == 0 && aElapsed >= 30)
+			{
+				Zombie* aZombie = nullptr;
+				int aSquishedCount = 0;
+				while (mBoard->IterateZombies(aZombie))
+				{
+					aZombie->Squish();
+					aZombie->TakeDamage(1800, (aZombie->mInPool ? 18U : 0U) | (1U << DamageFlags::DAMAGE_NO_ARMOR_PARTICLES));
+					aSquishedCount++;
+				}
+				{ FILE* aLog = fopen("saveload_log.txt", "a"); if (aLog) { fprintf(aLog, "squished=%d\n", aSquishedCount); fclose(aLog); } }
+				aStep = 1;
+			}
+			else if (aStep == 1 && aElapsed >= 40)
+			{
+				SexyString aSaveName = "D:\\data\\code\\pvz\\.trash\\squish_save.sav";
+				mBoard->SaveGame(aSaveName);
+				{ FILE* aLog = fopen("saveload_log.txt", "a"); if (aLog) { fprintf(aLog, "saved %s\n", aSaveName.c_str()); fclose(aLog); } }
+				aStep = 2;
+			}
+			else if (aStep == 2 && aElapsed >= 55)
+			{
+				SexyString aSaveName = "D:\\data\\code\\pvz\\.trash\\squish_save.sav";
+				aStep = 3;
+				aPostLoadFrames = 0;
+				{ FILE* aLog = fopen("saveload_log.txt", "a"); if (aLog) { fprintf(aLog, "kill board + fresh load\n"); fclose(aLog); } }
+				KillBoard();
+				MakeNewBoard();
+				bool aLoaded = mBoard != nullptr ? mBoard->LoadGame(aSaveName) : false;
+				{ FILE* aLog = fopen("saveload_log.txt", "a"); if (aLog) { fprintf(aLog, "load result=%d\n", (int)aLoaded); fclose(aLog); } }
+				if (aLoaded)
+					mGameScene = GameScenes::SCENE_PLAYING;
+			}
+		}
+	}
 	PvzToolkitBridgeUpdate();
 	if ((!mActive || mMinimized) && mBoard)
 	{
@@ -3268,8 +3341,181 @@ static bool HttpFetch(const wchar_t* host, const wchar_t* path, const wchar_t* o
 	return ok;
 }
 
+
+// ---------- 崩溃上报 ----------
+// 崩溃时 SEHCatcher 会在游戏目录写 crash.txt 和 crash_pending.txt;
+// 下次启动时本线程把 crash_pending.txt POST 到崩溃收集服务(静态站点无法接收 POST, 默认本地 8765),
+// 成功后删除该文件; 失败静默, 下次启动再试, 绝不影响游戏启动.
+static const wchar_t* kDefaultCrashReportUrl = L"http://127.0.0.1:8765/crash";
+
+static bool ParseHttpUrl(const wchar_t* theUrl, std::wstring* theHost, INTERNET_PORT* thePort, std::wstring* thePath)
+{
+	if (theUrl == NULL || _wcsnicmp(theUrl, L"http://", 7) != 0)
+		return false;
+
+	const wchar_t* aHostStart = theUrl + 7;
+	const wchar_t* aSlash = wcschr(aHostStart, L'/');
+	std::wstring aHostPort = aSlash != NULL ? std::wstring(aHostStart, aSlash) : std::wstring(aHostStart);
+	if (aHostPort.empty())
+		return false;
+
+	size_t aColon = aHostPort.find(L':');
+	if (aColon != std::wstring::npos)
+	{
+		*theHost = aHostPort.substr(0, aColon);
+		*thePort = (INTERNET_PORT)wcstol(aHostPort.c_str() + aColon + 1, NULL, 10);
+	}
+	else
+	{
+		*theHost = aHostPort;
+		*thePort = 80;
+	}
+	*thePath = aSlash != NULL ? std::wstring(aSlash) : std::wstring(L"/");
+	return !theHost->empty() && *thePort != 0;
+}
+
+static bool HttpPostText(const wchar_t* theUrl, const std::string& theBody)
+{
+	std::wstring aHost, aPath;
+	INTERNET_PORT aPort = 80;
+	if (!ParseHttpUrl(theUrl, &aHost, &aPort, &aPath))
+		return false;
+
+	bool anOk = false;
+	HINTERNET aSession = WinHttpOpen(L"PvZCrashReport/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
+	if (aSession == NULL)
+		return false;
+	WinHttpSetTimeouts(aSession, 5000, 5000, 5000, 15000);
+
+	HINTERNET aConnect = WinHttpConnect(aSession, aHost.c_str(), aPort, 0);
+	HINTERNET aRequest = NULL;
+	if (aConnect != NULL)
+		aRequest = WinHttpOpenRequest(aConnect, L"POST", aPath.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+
+	if (aRequest != NULL &&
+		WinHttpSendRequest(aRequest, L"Content-Type: text/plain; charset=utf-8\r\n", (DWORD)-1, (LPVOID)theBody.data(), (DWORD)theBody.size(), (DWORD)theBody.size(), 0) &&
+		WinHttpReceiveResponse(aRequest, NULL))
+	{
+		DWORD aStatus = 0, aSize = sizeof(aStatus);
+		if (WinHttpQueryHeaders(aRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &aStatus, &aSize, WINHTTP_NO_HEADER_INDEX))
+			anOk = aStatus >= 200 && aStatus < 300;
+	}
+
+	if (aRequest != NULL) WinHttpCloseHandle(aRequest);
+	if (aConnect != NULL) WinHttpCloseHandle(aConnect);
+	WinHttpCloseHandle(aSession);
+	return anOk;
+}
+
+static bool ReadTextFileW(const std::wstring& thePath, std::string* theOut, size_t theMaxSize)
+{
+	HANDLE aFile = CreateFileW(thePath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (aFile == INVALID_HANDLE_VALUE)
+		return false;
+
+	LARGE_INTEGER aSize = { 0 };
+	GetFileSizeEx(aFile, &aSize);
+	size_t aWant = (size_t)aSize.QuadPart;
+	if (aWant > theMaxSize)
+		aWant = theMaxSize;
+	theOut->resize(aWant);
+
+	DWORD aRead = 0;
+	bool anOk = aWant == 0 || (ReadFile(aFile, &(*theOut)[0], (DWORD)aWant, &aRead, NULL) != 0 && aRead <= aWant);
+	theOut->resize(anOk ? aRead : 0);
+	CloseHandle(aFile);
+	return anOk;
+}
+
+static std::string TrimTextLine(const std::string& theText)
+{
+	size_t aStart = theText.find_first_not_of(" \t\r\n");
+	if (aStart == std::string::npos)
+		return std::string();
+	size_t anEnd = theText.find_last_of("\r\n");
+	if (anEnd == std::string::npos || anEnd < aStart)
+		anEnd = theText.size() - 1;
+	return theText.substr(aStart, anEnd - aStart + 1);
+}
+
+// 上传上次崩溃留下的 crash_pending.txt(存在才上传; 成功删除, 失败保留等下次启动再试)
+static void UploadPendingCrashReport()
+{
+	wchar_t aDir[MAX_PATH];
+	if (!GetExeDirW(aDir, MAX_PATH))
+		return;
+
+	wchar_t aPending[MAX_PATH];
+	swprintf(aPending, MAX_PATH, L"%s\\crash_pending.txt", aDir);
+	if (GetFileAttributesW(aPending) == INVALID_FILE_ATTRIBUTES)
+	{
+		// 安装版工作目录一般就是游戏目录, 这里再兼容一下从其它工作目录启动的情况
+		wcscpy(aPending, L"crash_pending.txt");
+		if (GetFileAttributesW(aPending) == INVALID_FILE_ATTRIBUTES)
+			return;
+	}
+
+	std::string aCrashText;
+	if (!ReadTextFileW(aPending, &aCrashText, 1024 * 1024) || aCrashText.empty())
+		return;
+
+	// 版本号: 优先读同目录 version.txt
+	std::string aVersion = "unknown";
+	wchar_t aVerPath[MAX_PATH];
+	swprintf(aVerPath, MAX_PATH, L"%s\\version.txt", aDir);
+	std::string aVersionText;
+	if (ReadTextFileW(aVerPath, &aVersionText, 64))
+	{
+		std::string aTrimmed = TrimTextLine(aVersionText);
+		if (!aTrimmed.empty())
+			aVersion = aTrimmed;
+	}
+
+	// 上报地址: 同目录 crash_report_url.txt(一行 http://host[:port]/path) 可覆盖默认值
+	std::wstring aUrl = kDefaultCrashReportUrl;
+	wchar_t aUrlPath[MAX_PATH];
+	swprintf(aUrlPath, MAX_PATH, L"%s\\crash_report_url.txt", aDir);
+	std::string aUrlText;
+	if (ReadTextFileW(aUrlPath, &aUrlText, 512))
+	{
+		std::string aTrimmed = TrimTextLine(aUrlText);
+		if (!aTrimmed.empty())
+			aUrl.assign(aTrimmed.begin(), aTrimmed.end());
+	}
+
+	// 先改名成 .uploading: 避免同机多开时重复上传同一个崩溃
+	wchar_t aUploading[MAX_PATH];
+	swprintf(aUploading, MAX_PATH, L"%s.uploading", aPending);
+	if (!MoveFileExW(aPending, aUploading, MOVEFILE_REPLACE_EXISTING))
+	{
+		if (!CopyFileW(aPending, aUploading, FALSE))
+			return;
+	}
+
+	std::string aBody = "version=" + aVersion + "\r\n";
+	aBody += "----crash.txt----\r\n";
+	aBody += aCrashText;
+
+	if (!HttpPostText(aUrl.c_str(), aBody))
+	{
+		// 上传失败: 还原成待上传状态, 下次启动再试
+		MoveFileExW(aUploading, aPending, MOVEFILE_REPLACE_EXISTING);
+		return;
+	}
+	DeleteFileW(aUploading);
+}
+
 static DWORD WINAPI UpdateThreadProc(LPVOID)
 {
+	// 整个进程生命周期内只检查一次: LoadingCompleted 在标题界面会被多次调用
+	static LONG sUpdateCheckStarted = 0;
+	if (InterlockedExchange(&sUpdateCheckStarted, 1) != 0)
+		return 0;
+
+
+	// 先把上次崩溃留下的报告上传(静默, 失败下次启动再试)
+	UploadPendingCrashReport();
+
 	wchar_t dir[MAX_PATH];
 	if (!GetExeDirW(dir, MAX_PATH))
 		return 0;
@@ -3362,15 +3608,26 @@ static DWORD WINAPI UpdateThreadProc(LPVOID)
 	return 0;
 }
 
+// 启动时只做一次的任务: 拉起修改器 + 起自动更新/崩溃上报线程
+// (LoadingCompleted 会被标题界面的点击/按键多次调用, 不能每次都联网)
+static LONG sStartupTasksDone = 0;
+static void StartupTasksOnce()
+{
+	if (InterlockedExchange(&sStartupTasksDone, 1) != 0)
+		return;
+
+	TryLaunchToolkit();
+	DWORD aTid;
+	HANDLE aTh = CreateThread(NULL, 0, UpdateThreadProc, NULL, 0, &aTid);
+	if (aTh != NULL)
+		CloseHandle(aTh);
+}
+
 void LawnApp::LoadingCompleted()
 {
-	{
-		TryLaunchToolkit();
-		DWORD aTid;
-		HANDLE aTh = CreateThread(NULL, 0, UpdateThreadProc, NULL, 0, &aTid);
-		if (aTh != NULL)
-			CloseHandle(aTh);
-	}
+
+	// 自动拉起修改器 / 自动更新检查: 只在本次启动做一次
+	StartupTasksOnce();
 
 	mWidgetManager->RemoveWidget(mTitleScreen);
 	SafeDeleteWidget(mTitleScreen);

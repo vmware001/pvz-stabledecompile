@@ -962,6 +962,10 @@ void SEHCatcher::WriteToFile(const std::string& theErrorText)
 {
 	std::fstream aStream("crash.txt", std::ios::out);
 	aStream << theErrorText.c_str() << std::endl;
+
+	// 崩溃上报: 额外留一份待上传副本, 游戏下次启动时 POST 到崩溃收集服务
+	std::fstream aPendingStream("crash_pending.txt", std::ios::out);
+	aPendingStream << theErrorText.c_str() << std::endl;
 }
 
 void SEHCatcher::SubmitReportThread(void *theArg)
