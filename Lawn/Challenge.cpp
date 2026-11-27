@@ -4792,6 +4792,11 @@ ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 {
 	if (theSeedType >= SEED_PEASHOOTER && theSeedType <= SEED_CABBAGEPULT)
 	{
+		// IZE 植物编号卡: 种子编号直接当僵尸编号用(所以 30 号南瓜头=倭瓜僵尸);
+		// 27 号三叶草原来对应坚果僵尸, 改成对应高坚果僵尸.
+		if (theSeedType == SEED_BLOVER)
+			return ZOMBIE_TALLNUT_HEAD;
+
 		return (ZombieType)theSeedType;
 	}
 

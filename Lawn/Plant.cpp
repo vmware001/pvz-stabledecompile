@@ -94,7 +94,7 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
 int gIZombiePlantCosts[33] = {
     50, 50, 75, 75, 125, 75, 125, 175, 350, 50, 50,
     75, 175, 125, 75, 125, 200, 125, 175, 100, 100, 150,
-    150, 250, 50, 1500, 50, 150, 125, 100, 75, 200, 300
+    150, 250, 50, 1500, 50, 150, 125, 175, 75, 200, 300
 };
 
 int* GetIZombiePlantCosts(GameMode theMode)
@@ -105,7 +105,7 @@ int* GetIZombiePlantCosts(GameMode theMode)
     static int aEnhancedCosts[33] = {
         50, 50, 75, 75, 125, 75, 125, 175, 350, 50, 50,
         75, 175, 125, 75, 125, 200, 125, 175, 100, 100, 150,
-        150, 250, 50, 1500, 50, 150, 125, 100, 50, 200, 300
+        150, 250, 50, 1500, 50, 150, 125, 175, 50, 200, 300
     };
     static_assert(ZOMBIE_SQUASH_HEAD == 30 && SEED_SQUASH == 17);
     return aEnhancedCosts;
