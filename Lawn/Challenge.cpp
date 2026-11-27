@@ -4792,11 +4792,7 @@ ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 {
 	if (theSeedType >= SEED_PEASHOOTER && theSeedType <= SEED_CABBAGEPULT)
 	{
-		// IZE 植物编号卡: 种子编号直接当僵尸编号用(所以 30 号南瓜头=倭瓜僵尸);
-		// 27 号三叶草原来对应坚果僵尸, 改成对应高坚果僵尸.
-		if (theSeedType == SEED_BLOVER)
-			return ZOMBIE_TALLNUT_HEAD;
-
+		// IZE 植物编号卡: 种子编号直接当僵尸编号用(所以 30 号南瓜头=倭瓜僵尸)
 		return (ZombieType)theSeedType;
 	}
 
@@ -5327,13 +5323,6 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 					aNewType = SEED_GATLINGPEA;
 			}
 
-			// 泳池黑夜: 水路的大嘴花 2/3 概率替换成攻击性植物
-			if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
-				mBoard->mPlantRow[aPlant->mRow] == PlantRowType::PLANTROW_POOL &&
-				aOldType == SEED_CHOMPER && aNewType == aOldType && Rand(3) < 2)
-			{
-				aNewType = IZombiePickAttackingPlantForChomper();
-			}
 
 			// 黑夜增强 / 黑夜困难 / 黑夜泳池: 每个小喷菇 50% 概率替换成攻击性植物
 			if (aOldType == SEED_PUFFSHROOM && aNewType == aOldType &&
@@ -5369,6 +5358,14 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		{
 			aNewType = SEED_GLOOMSHROOM;
 			aPiercingGloomshroomCount++;
+		}
+
+		// 泳池黑夜: 水路的大嘴花 2/3 概率替换成攻击性植物(普通阵和特殊阵都生效)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+			mBoard->mPlantRow[aPlant->mRow] == PlantRowType::PLANTROW_POOL &&
+			aOldType == SEED_CHOMPER && aNewType == aOldType && Rand(3) < 2)
+		{
+			aNewType = IZombiePickAttackingPlantForChomper();
 		}
 
 		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||

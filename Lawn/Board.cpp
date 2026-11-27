@@ -1891,7 +1891,7 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
 		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
 		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
-		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_BLOVER);
+		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_CABBAGEPULT);   // 原来放三叶草, 改成卷心菜投手
 		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
 		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBONI);
 		mSeedBank->mSeedPackets[12].SetPacketType(SeedType::SEED_ZOMBIE_BALLOON);
