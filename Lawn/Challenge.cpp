@@ -2597,7 +2597,9 @@ void Challenge::DrawBackdrop(Graphics* g)
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_6 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_7 || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_8 ||
 		mApp->IsEndlessIZombie(mApp->mGameMode))
 	{
-		g->DrawImageF(Sexy::IMAGE_WALLNUT_BOWLINGSTRIPE, 432, 73);
+		// 黑夜屋顶种植区是 6 列, 红线画在 6 列处
+		int aStripeX = mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT ? 512 : 432;
+		g->DrawImageF(Sexy::IMAGE_WALLNUT_BOWLINGSTRIPE, aStripeX, 73);
 	}
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_9)
 	{
@@ -5041,6 +5043,12 @@ void Challenge::IZombiePlacePlants(SeedType theSeedType, int theCount, int theGr
 		aColumns = 5;
 	}
 
+	// 黑夜屋顶: 5 行 x 6 列 = 30 格种植区
+	if (aGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
+	{
+		aColumns = 6;
+	}
+
 	// 只能生成在 aMinGridY 行与 aMaxGridY 行之间
 	int aMinGridY, aMaxGridY;
 	if (theGridY == -1)  // 参数 theGridY 使用默认的 -1 时，不限定生成范围
@@ -5953,9 +5961,9 @@ void Challenge::IZombieInitLevel()
 		// 泳池黑夜: 标准 25 株之后按原有比例补足 6 行 x 5 列 = 30 株主体
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
 			IZombiePlaceExtraPlants(30);
-		// 黑夜屋顶: 5 行 x 5 列 = 25 格, 保证每格都有主体植物
+		// 黑夜屋顶: 5 行 x 6 列 = 30 格, 保证每格都有主体植物
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
-			IZombiePlaceExtraPlants(25);
+			IZombiePlaceExtraPlants(30);
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
 			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
 			IZombieStrengthenPlants(aSpecialFormation, aFormationType);
@@ -5964,7 +5972,7 @@ void Challenge::IZombieInitLevel()
 		{
 			for (int aRow = 0; aRow < 5; aRow++)
 			{
-				for (int aCol = 0; aCol < 5; aCol++)
+				for (int aCol = 0; aCol < 6; aCol++)
 				{
 					if (mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
 						IZombiePlacePlantInSquare(SEED_PEASHOOTER, aCol, aRow);
