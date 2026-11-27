@@ -1505,13 +1505,20 @@ static void RetireSaveFile(const SexyString& theFileName)
 	if (gLawnApp == nullptr || !gLawnApp->FileExists(theFileName))
 		return;
 	SexyString aBadName = theFileName + _S(".bad");
-	DeleteFile(aBadName.c_str());
-	MoveFile(theFileName.c_str(), aBadName.c_str());
+	remove(aBadName.c_str());
+	rename(theFileName.c_str(), aBadName.c_str());
 }
 
 //0x44F560
 void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 {
+	// 全新安装(还没有任何玩家档案)时 mPlayerInfo 为空, 继续取 mPlayerInfo->mId 会崩溃; 退回正常建档流程.
+	if (mPlayerInfo == nullptr)
+	{
+		ShowGameSelector();
+		return;
+	}
+
 	//if (NeedRegister())
 	//{
 	//	ShowGameSelector();
@@ -1529,6 +1536,13 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 
 void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame, int theLevel)
 {
+	// 全新安装(还没有任何玩家档案)时 mPlayerInfo 为空, 继续取 mPlayerInfo->mId 会崩溃; 退回正常建档流程.
+	if (mPlayerInfo == nullptr)
+	{
+		ShowGameSelector();
+		return;
+	}
+
 	//if (NeedRegister())
 	//{
 	//	ShowGameSelector();
@@ -3640,7 +3654,8 @@ void LawnApp::LoadingCompleted()
 	else
 	{
 #ifdef _DEBUG
-		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr || strstr(GetCommandLineA(), "--iz-enhanced") != nullptr || strstr(GetCommandLineA(), "--iz-pool-night") != nullptr || strstr(GetCommandLineA(), "--iz-roof-night") != nullptr)
+		// 全新安装(空 userdata, 无档案)时 mPlayerInfo 为空, 走 IZE 快捷入口会在 PreNewGame 里崩溃, 这里退回正常菜单
+		if (mPlayerInfo != nullptr && (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr || strstr(GetCommandLineA(), "--iz-enhanced") != nullptr || strstr(GetCommandLineA(), "--iz-pool-night") != nullptr || strstr(GetCommandLineA(), "--iz-roof-night") != nullptr))
 		{
 			KillBoard();
 			GameMode aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
