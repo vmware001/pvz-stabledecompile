@@ -4171,15 +4171,33 @@ bool LawnApp::SeedTypeAvailable(SeedType theSeedType)
 	return HasSeedType(theSeedType);
 }
 
+// 崩溃日志附加信息: 记录模式/场景/关卡/回合数/植物僵尸数量, 便于定位偶发崩溃
+std::string LawnApp::GetGameSEHInfo()
+{
+	std::string aInfo = SexyApp::GetGameSEHInfo();
+	char aBuf[256];
+	int aLevel = mBoard != nullptr ? mBoard->mLevel : -1;
+	int aRounds = (mBoard != nullptr && mBoard->mChallenge != nullptr) ? mBoard->mChallenge->mSurvivalStage : -1;
+	int aPlants = mBoard != nullptr ? mBoard->mPlants.mSize : -1;
+	int aZombies = mBoard != nullptr ? mBoard->mZombies.mSize : -1;
+	sexysprintf(aBuf, _S("GameMode: %d  Scene: %d  Level: %d  Rounds: %d  Plants: %d  Zombies: %d\r\n"),
+		(int)mGameMode, (int)mGameScene, aLevel, aRounds, aPlants, aZombies);
+	aInfo += aBuf;
+	return aInfo;
+}
 //0x453C30
 Reanimation* LawnApp::AddReanimation(float theX, float theY, int theRenderOrder, ReanimationType theReanimationType)
 {
+	if (mEffectSystem == nullptr || mEffectSystem->mReanimationHolder == nullptr)
+		return nullptr;
 	return mEffectSystem->mReanimationHolder->AllocReanimation(theX, theY, theRenderOrder, theReanimationType);
 }
 
 //0x453C80
 TodParticleSystem* LawnApp::AddTodParticle(float theX, float theY, int theRenderOrder, ParticleEffect theEffect)
 {
+	if (mEffectSystem == nullptr || mEffectSystem->mParticleHolder == nullptr)
+		return nullptr;
 	return mEffectSystem->mParticleHolder->AllocParticleSystem(theX, theY, theRenderOrder, theEffect);
 }
 
@@ -4200,17 +4218,24 @@ TodParticleSystem* LawnApp::ParticleGet(ParticleSystemID theParticleID)
 
 TodParticleSystem* LawnApp::ParticleTryToGet(ParticleSystemID theParticleID)
 {
+	if (mEffectSystem == nullptr || mEffectSystem->mParticleHolder == nullptr)
+		return nullptr;
 	return mEffectSystem->mParticleHolder->mParticleSystems.DataArrayTryToGet((unsigned int)theParticleID);
 }
 
 Reanimation* LawnApp::ReanimationGet(ReanimationID theReanimationID)
 {
+	if (mEffectSystem == nullptr || mEffectSystem->mReanimationHolder == nullptr)
+		return nullptr;
 	return mEffectSystem->mReanimationHolder->mReanimations.DataArrayGet((unsigned int)theReanimationID);
 }
 
 //0x453CB0
 Reanimation* LawnApp::ReanimationTryToGet(ReanimationID theReanimationID)
 {
+	// 防崩溃: 关卡切换/关闭时 EffectSystem 可能已被释放, 此时访问会空指针崩溃
+	if (mEffectSystem == nullptr || mEffectSystem->mReanimationHolder == nullptr)
+		return nullptr;
 	return mEffectSystem->mReanimationHolder->mReanimations.DataArrayTryToGet((unsigned int)theReanimationID);
 }
 

@@ -71,6 +71,8 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+	virtual std::string GetGameSEHInfo();
+public:
 	static SDL_Window*				mSDLWindow;
 	static SDL_Renderer*			mSDLRenderer;
 	static SDL_Cursor*				mSDLPointerCursor;
