@@ -1891,7 +1891,7 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
 		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
 		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
-		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_TALLNUT);   // 原来放三叶草, 改成高坚果
+		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_MAGNETSHROOM);   // 原来放三叶草, 改成磁力菇(对应高坚果僵尸)
 		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
 		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBONI);
 		mSeedBank->mSeedPackets[12].SetPacketType(SeedType::SEED_ZOMBIE_BALLOON);
