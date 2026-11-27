@@ -1,6 +1,7 @@
 #include "Music.h"
 #include "SaveGame.h"
 #include "../Board.h"
+#include "ReanimationLawn.h"
 #include "../Challenge.h"
 #include "../SeedPacket.h"
 #include "../../LawnApp.h"
@@ -456,6 +457,15 @@ void FixBoardAfterLoad(Board* theBoard)
 		{
 			aZombie->mApp = theBoard->mApp;
 			aZombie->mBoard = theBoard;
+
+			// 存档是整块结构体裸拷贝, 僵尸的 mSquishedImage 是运行时 MemoryImage 指针;
+			// 读档后这个指针指向上一次进程/上一关卡里已经释放的内存, 直接画/析构会崩溃.
+			// 这里先丢弃旧指针; 如果读档时尸体还在(原来有快照), 用恢复好的动画重新生成快照.
+
+			bool aWasSquishedWithSnapshot = aZombie->mSquished && aZombie->mSquishedImage != nullptr;
+			aZombie->mSquishedImage = nullptr;
+			if (aWasSquishedWithSnapshot && theBoard->mApp != nullptr && theBoard->mApp->mReanimatorCache != nullptr)
+				aZombie->mSquishedImage = theBoard->mApp->mReanimatorCache->MakeSquishedZombieFrame(aZombie);
 		}
 	}
 	{
