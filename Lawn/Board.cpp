@@ -1883,7 +1883,11 @@ void Board::InitLevel()
 	else if (mApp->IsEndlessIZombie(aGameMode))
 	{
 		TOD_ASSERT(mSeedBank->mNumPackets == 15);
-		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_NORMAL);   // 泳池黑夜默认卡: 普通僵尸
+		if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+
+			mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_NORMAL);   // 泳池黑夜默认卡: 普通僵尸
+		else
+			mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);      // 其它 IZE(含黑夜屋顶): 小鬼僵尸
 		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_PUMPKINSHELL);
 		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
 		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_ZOMBIE_POLEVAULTER);
