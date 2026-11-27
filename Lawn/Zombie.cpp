@@ -6383,65 +6383,6 @@ void Zombie::DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawP
     }
 }
 
-// ============================================================================
-// SWIM_LOOK_B_BEGIN
-// B 方案(纯代码侧, 不改资源包): 泳池黑夜水路里的 6 种"贴图救生圈"僵尸
-// (读报/雪人/小丑/伴舞/扶梯/橄榄球)的 reanim 里没有原版 anim_swim 轨道,
-// 在水里只能播走路动画. 上一版只是把动画放慢 + 整体上下浮动, 观感仍然像
-// "套着救生圈在走路". 本块在不新增动画资源的前提下, 从绘制/变换层再补三点:
-//   1. 身体前倾: 以救生圈中心(腰胯/水线)为轴把本体 reanim 旋转约 8~16°
-//      (橄榄球僵尸的跑步动画本身已前倾, 基础角更小), 让上半身向行进方向探出去;
-//   2. 划水节奏: 动画速率进一步降到 0.45, 并叠加慢速的上下浮沉/横向漂移,
-//      用棋盘主循环计数做时间基准, 刻意与走路动画循环错开;
-//   3. 轻微摇摆: 前倾角上叠加 ±2.5° 的慢速摆动(与浮沉同频, 约 3.3 秒一个周期).
-// 只对 GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT + mInPool + 上述 6 种生效;
-// 陆地/其它模式/其它僵尸(包括小鬼)完全不受影响. 救生圈仍用同一个矩阵定位,
-// 旋转轴就取圈心, 所以圈心不会动, 永远贴在腰上, 不会和身体分离.
-// ============================================================================
-
-//0x52D9E0
-// 泳池黑夜: 这些僵尸的 reanim 里没有原版 anim_swim 轨道, 水里只能播走路动画,
-// 这里在水路时给它们放慢动画 + 加一点上下浮动, 看起来更接近"踩水/游泳".
-static bool IZombieIsPoolNightDuckyTubeType(ZombieType theZombieType)
-{
-    return theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
-        theZombieType == ZombieType::ZOMBIE_YETI ||
-        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
-        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER ||
-        theZombieType == ZombieType::ZOMBIE_LADDER ||
-        theZombieType == ZombieType::ZOMBIE_FOOTBALL ||
-        theZombieType == ZombieType::ZOMBIE_IMP;
-}
-
-// SWIM_LOOK_B: 本方案真正做"身体前倾 + 慢速摇摆"的 6 种类型.
-// 小鬼僵尸沿用上一版的游泳圈跟随和浮动方式(不做本体旋转), 所以不在这个列表里.
-static bool IZombieIsPoolNightSwimLookType(ZombieType theZombieType)
-{
-    return theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
-        theZombieType == ZombieType::ZOMBIE_YETI ||
-        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
-        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER ||
-        theZombieType == ZombieType::ZOMBIE_LADDER ||
-        theZombieType == ZombieType::ZOMBIE_FOOTBALL;
-}
-
-// SWIM_LOOK_B: 慢速游泳节奏的时间基准(单位: 秒, 棋盘主循环 100 次/秒).
-// 加一个只和位置/行/类型有关的固定相位让同屏多只不同步; 周期(3~6 秒)刻意
-// 与走路动画循环(约 2~4 秒)错开, 避免和动画帧同步产生"抽搐"感.
-static float IZombiePoolNightSwimTime(const Zombie* theZombie)
-{
-    int aPhase = theZombie->mBoard != nullptr ? theZombie->mBoard->mMainCounter : 0;
-    aPhase += (int)(theZombie->mPosX * 0.05f) + theZombie->mRow * 31 + (int)theZombie->mZombieType * 7;
-    return aPhase * 0.01f;
-}
-
-// SWIM_LOOK_B: 救生圈(腰胯/水线)中心在本体 reanim 覆盖矩阵输出空间里的位置.
-// DrawIZombiePoolNightDuckyTube 用同一个点画圈, UpdateReanim 又用同一个点当
-// 身体前倾的旋转轴, 所以旋转时圈心固定不动, 救生圈始终贴在腰上.
-// (定义在后面, 需要用到 gIZombiePoolNightDuckyTubeDefs 参数表, 这里先声明)
-static bool IZombiePoolNightSwimGetTubeCenter(const Zombie* theZombie, Reanimation* theBodyReanim,
-                                              float& theCenterX, float& theCenterY, float& theDrawScale);
-
 //0x52C310
 void Zombie::UpdateReanim()
 {
@@ -6528,30 +6469,6 @@ void Zombie::UpdateReanim()
         anOffsetX += 90.0f * mScaleZombie;
     }
 
-    // ---- SWIM_LOOK_B_BEGIN: 水路里的慢速浮沉 / 横向漂移 ----
-    bool aSwimLookActive = false;
-    float aSwimLeanRad = 0.0f;
-    if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && IZombieIsPoolNightSwimLookType(mZombieType))
-    {
-        // 上一帧可能残留旋转分量(m01); 先清掉, 离开水路/切换模式后不会保持倾斜
-        aBodyReanim->mOverlayMatrix.m01 = 0.0f;
-
-        if (mInPool && !mPoolNightDrown)
-        {
-            float aSwimTime = IZombiePoolNightSwimTime(this);
-            float aBobWave = sinf(aSwimTime * 1.9f);                           // 浮沉节奏(约 3.3 秒一个周期)
-            anOffsetY += aBobWave * 3.8f;                                      // 慢速浮沉
-            anOffsetX += sinf(aSwimTime * 1.25f + 2.0f) * 1.8f;                // 横向漂移
-            // 前倾 + 轻摆: 摆动和浮沉同频(像划水时身体随水起伏前后点一下),
-            // 但不跟走路动画帧同步; 橄榄球僵尸的跑步动画本身已经前倾, 基础角小一点免得像要摔倒
-            float aBaseLeanDeg = (mZombieType == ZombieType::ZOMBIE_FOOTBALL) ? 10.0f : 13.5f;
-            float aLeanDeg = aBaseLeanDeg + sinf(aSwimTime * 1.9f + 0.6f) * 2.5f;
-            aSwimLeanRad = -DEG_TO_RAD(aLeanDeg);                              // 默认朝左走, 负角让上身往前探
-            aSwimLookActive = true;
-        }
-    }
-    // ---- SWIM_LOOK_B_END ----
-
     aBodyReanim->mOverlayMatrix.m10 = 0.0f;
     aBodyReanim->mOverlayMatrix.m20 = 0.0f;
     aBodyReanim->mOverlayMatrix.m11 = 0.0f;
@@ -6587,38 +6504,6 @@ void Zombie::UpdateReanim()
     }
 
     aBodyReanim->Update();
-
-    // ---- SWIM_LOOK_B_BEGIN: 以救生圈中心(腰胯/水线)为轴让身体前倾 + 轻摆 ----
-    if (aSwimLookActive)
-    {
-        float aCenterX, aCenterY, aTubeScale;
-        if (IZombiePoolNightSwimGetTubeCenter(this, aBodyReanim, aCenterX, aCenterY, aTubeScale))
-        {
-            (void)aTubeScale;   // 旋转只需要圈心位置, 圈的贴图缩放由绘制侧自己用
-
-            // 镜像(走反方向/被魅惑)时前倾方向要反过来, 否则会变成往后仰
-            if (aBodyReanim->mOverlayMatrix.m00 < 0.0f)
-            {
-                aSwimLeanRad = -aSwimLeanRad;
-            }
-
-            float aCos = cosf(aSwimLeanRad);
-            float aSin = sinf(aSwimLeanRad);
-            SexyMatrix3 aRotation;
-            aRotation.LoadIdentity();
-            aRotation.m00 = aCos;
-            aRotation.m01 = -aSin;
-            aRotation.m10 = aSin;
-            aRotation.m11 = aCos;
-            // 旋转轴取圈心: T(p) * R * T(-p), 圈心在旋转前后位置不变
-            aRotation.m02 = aCenterX - aCos * aCenterX + aSin * aCenterY;
-            aRotation.m12 = aCenterY - aSin * aCenterX - aCos * aCenterY;
-            // R * M: 在屏幕空间绕腰胯点旋转整个本体(含防具/盾牌渲染组)
-            SexyMatrix3Multiply(aBodyReanim->mOverlayMatrix, aRotation, aBodyReanim->mOverlayMatrix);
-        }
-    }
-    // ---- SWIM_LOOK_B_END ----
-
     aBodyReanim->PropogateColorToAttachments();
 }
 
@@ -7261,6 +7146,20 @@ void Zombie::DrawBungeeCord(Graphics* g, int theOffsetX, int theOffsetY)
     g->PopState();
 }
 
+//0x52D9E0
+// 泳池黑夜: 这些僵尸的 reanim 里没有原版 anim_swim 轨道, 水里只能播走路动画,
+// 这里在水路时给它们放慢动画 + 加一点上下浮动, 看起来更接近"踩水/游泳".
+static bool IZombieIsPoolNightDuckyTubeType(ZombieType theZombieType)
+{
+    return theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
+        theZombieType == ZombieType::ZOMBIE_YETI ||
+        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
+        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER ||
+        theZombieType == ZombieType::ZOMBIE_LADDER ||
+        theZombieType == ZombieType::ZOMBIE_FOOTBALL ||
+        theZombieType == ZombieType::ZOMBIE_IMP;
+}
+
 void Zombie::GetDrawPos(ZombieDrawPosition& theDrawPos)
 {
     theDrawPos.mImageOffsetX = mPosX - mX;
@@ -7535,11 +7434,8 @@ void Zombie::GetDrawPos(ZombieDrawPosition& theDrawPos)
         theDrawPos.mClipHeight = CLIP_HEIGHT_OFF;
     }
 
-    // 泳池黑夜: 小鬼僵尸(不在 SWIM_LOOK_B 的 6 种里)保持上一版的跟随动画帧的上下浮动.
-    // 6 种前倾僵尸的浮沉改为在 UpdateReanim 里用独立的慢速时间基准做, 这里不再叠加,
-    // 否则会变成两套不同步的上下抖动.
-    if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mInPool &&
-        IZombieIsPoolNightDuckyTubeType(mZombieType) && !IZombieIsPoolNightSwimLookType(mZombieType))
+    // 泳池黑夜: 水路里的"贴图游泳圈"僵尸加一点上下浮动(原版没有 anim_swim, 只能靠这种方式接近踩水)
+    if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mInPool && IZombieIsPoolNightDuckyTubeType(mZombieType))
     {
         Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
         if (aBodyReanim != nullptr)
@@ -7907,43 +7803,6 @@ const IZombiePoolNightDuckyTubeDef gIZombiePoolNightDuckyTubeDefs[] =
 };
 }
 
-// SWIM_LOOK_B: 救生圈(腰胯/水线)中心在本体 reanim 覆盖矩阵输出空间中的位置.
-// DrawIZombiePoolNightDuckyTube 用它定位救生圈, UpdateReanim 用同一个点当身体前倾的
-// 旋转轴; 这里用完整的矩阵分量(m00/m01/m10/m11/m02/m12)映射, 所以即使本体已经带了
-// 旋转, 算出来的也还是同一个圈心(旋转轴不动), 救生圈不会和身体分离.
-static bool IZombiePoolNightSwimGetTubeCenter(const Zombie* theZombie, Reanimation* theBodyReanim,
-                                              float& theCenterX, float& theCenterY, float& theDrawScale)
-{
-    if (theBodyReanim == nullptr || theBodyReanim->mOverlayMatrix.m11 <= 0.0f)
-        return false;
-
-    const IZombiePoolNightDuckyTubeDef* aDef = nullptr;
-    for (int i = 0; i < (int)(sizeof(gIZombiePoolNightDuckyTubeDefs) / sizeof(gIZombiePoolNightDuckyTubeDefs[0])); i++)
-    {
-        if (gIZombiePoolNightDuckyTubeDefs[i].mZombieType == theZombie->mZombieType)
-        {
-            aDef = &gIZombiePoolNightDuckyTubeDefs[i];
-            break;
-        }
-    }
-    if (aDef == nullptr)
-        return false;
-    if (!theBodyReanim->TrackExists(aDef->mAnchorTrack))
-        return false;
-
-    // 跟随躯干轨道当前姿态的绝对位置: 换动作(走/吃/跳舞/跑)时救生圈都贴在腰上,
-    // 不会像"相对首帧位移"那样因为基准动作变化而整体错位.
-    ReanimatorTransform aAnchorTransform;
-    theBodyReanim->GetCurrentTransform(theBodyReanim->FindTrackIndex(aDef->mAnchorTrack), &aAnchorTransform);
-    const SexyMatrix3& aMatrix = theBodyReanim->mOverlayMatrix;
-    float aLocalX = aAnchorTransform.mTransX + aDef->mOffsetX;
-    float aLocalY = aAnchorTransform.mTransY + aDef->mOffsetY;
-    theCenterX = aMatrix.m00 * aLocalX + aMatrix.m01 * aLocalY + aMatrix.m02;
-    theCenterY = aMatrix.m10 * aLocalX + aMatrix.m11 * aLocalY + aMatrix.m12;
-    theDrawScale = aDef->mScale * aMatrix.m11;
-    return true;
-}
-
 // 泳池黑夜: 给没有 duckytube 轨道的僵尸补一个游泳圈(原先只支持小鬼僵尸)
 void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
 {
@@ -7991,10 +7850,30 @@ void Zombie::DrawIZombiePoolNightDuckyTube(Graphics* g)
     }
     else
     {
-        // SWIM_LOOK_B: 6 种前倾僵尸的圈心计算抽到公共函数里, 和 UpdateReanim 的
-        // 旋转轴用同一套参数/同一个矩阵映射, 旋转时圈心固定贴在腰上.
-        if (!IZombiePoolNightSwimGetTubeCenter(this, aBodyReanim, aCenterX, aCenterY, aDrawScale))
+        const IZombiePoolNightDuckyTubeDef* aDef = nullptr;
+        for (int i = 0; i < (int)(sizeof(gIZombiePoolNightDuckyTubeDefs) / sizeof(gIZombiePoolNightDuckyTubeDefs[0])); i++)
+        {
+            if (gIZombiePoolNightDuckyTubeDefs[i].mZombieType == mZombieType)
+            {
+                aDef = &gIZombiePoolNightDuckyTubeDefs[i];
+                break;
+            }
+        }
+        if (aDef == nullptr)
             return;
+        if (!aBodyReanim->TrackExists(aDef->mAnchorTrack))
+            return;
+
+        // 跟随躯干轨道当前姿态的绝对位置: 换动作(走/吃/跳舞/跑)时游泳圈都贴在腰上,
+        // 不会像"相对首帧位移"那样因为基准动作变化而整体错位.
+        ReanimatorTransform aAnchorTransform;
+        aBodyReanim->GetCurrentTransform(aBodyReanim->FindTrackIndex(aDef->mAnchorTrack), &aAnchorTransform);
+        float aAnchorX = aBodyReanim->mOverlayMatrix.m02 + aBodyScaleX * aAnchorTransform.mTransX;
+        float aAnchorY = aBodyReanim->mOverlayMatrix.m12 + aBodyScaleY * aAnchorTransform.mTransY;
+
+        aDrawScale = aDef->mScale * aBodyScaleY;
+        aCenterX = aAnchorX + aBodyScaleX * aDef->mOffsetX;
+        aCenterY = aAnchorY + aBodyScaleY * aDef->mOffsetY;
     }
 
     // 游泳圈贴图没有在 Resources 里静态登记, 按 reanim 定义里的资源名加载一次并缓存
@@ -8422,10 +8301,9 @@ void Zombie::ApplyAnimRate(float theAnimRate)
     {
         float aRate = IsMovingAtChilledSpeed() && mZombiePhase != ZombiePhase::PHASE_ZOMBIE_DYING ? theAnimRate * 0.5f : theAnimRate;
 
-        // 泳池黑夜: 水路里没有原版 anim_swim 的僵尸放慢动作, 配合浮动看起来像在划水而不是走路.
-        // SWIM_LOOK_B: 6 种做前倾/摇摆的僵尸进一步降到 0.45(划水节奏), 小鬼保持上一版的 0.55.
+        // 泳池黑夜: 水路里没有原版 anim_swim 的僵尸放慢动作, 配合浮动看起来像在划水而不是走路
         if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && mInPool && IZombieIsPoolNightDuckyTubeType(mZombieType))
-            aRate *= IZombieIsPoolNightSwimLookType(mZombieType) ? 0.45f : 0.55f;
+            aRate *= 0.55f;
 
         aBodyReanim->mAnimRate = aRate;
     }
@@ -8792,18 +8670,11 @@ void Zombie::PoolSplash(bool theInToPoolSound)
 // 在这个模式下允许它们入水, 它们就能正常啃水上的植物.
 bool Zombie::ZombieTypeCanGoInPoolInIZombiePoolNight(ZombieType theZombieType)
 {
-    // 矿工/跳跳/冰车/巨人/投篮车/舞王按"水路非法"处理(直接淹死), 不在这里放行;
-    // 扶梯/橄榄球/读报/雪人/小丑/伴舞已经有贴图版游泳圈, 允许入水.
+    // 矿工/跳跳/冰车/巨人/投篮车/舞王/扶梯/橄榄球/读报/雪人/小丑/伴舞一律按"水路非法"处理(直接淹死)
     return theZombieType == ZombieType::ZOMBIE_IMP ||
         theZombieType == ZombieType::ZOMBIE_POLEVAULTER ||
         theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
-        theZombieType == ZombieType::ZOMBIE_DOOR ||
-        theZombieType == ZombieType::ZOMBIE_LADDER ||
-        theZombieType == ZombieType::ZOMBIE_FOOTBALL ||
-        theZombieType == ZombieType::ZOMBIE_NEWSPAPER ||
-        theZombieType == ZombieType::ZOMBIE_YETI ||
-        theZombieType == ZombieType::ZOMBIE_JACK_IN_THE_BOX ||
-        theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER;
+        theZombieType == ZombieType::ZOMBIE_DOOR;
 }
 
 void Zombie::CheckForPool()

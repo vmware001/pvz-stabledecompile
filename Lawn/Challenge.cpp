@@ -4885,7 +4885,10 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		mBoard->IsPoolSquare(theGridX, theGridY) &&
 		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER ||
 			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT ||
-			theZombieType == ZOMBIE_POGO))
+			theZombieType == ZOMBIE_POGO || theZombieType == ZOMBIE_BACKUP_DANCER ||
+			theZombieType == ZOMBIE_NEWSPAPER || theZombieType == ZOMBIE_YETI ||
+			theZombieType == ZOMBIE_JACK_IN_THE_BOX ||
+			theZombieType == ZOMBIE_LADDER || theZombieType == ZOMBIE_FOOTBALL))
 	{
 		// 冰车下水前可能已经在泳池里留下冰道, 一起清掉, 免得水面上留一块冰
 		if (theZombieType == ZOMBIE_ZAMBONI)
