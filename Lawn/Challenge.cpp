@@ -4852,6 +4852,15 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
 
+	// 泳池黑夜: 潜水僵尸放在水路时走原版的"跳入水中"流程(动画/水花/贴图都是原版状态, 不会像走路那样站在水面上)
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_SNORKEL &&
+		mBoard->IsPoolSquare(theGridX, theGridY))
+	{
+		aZombie->mInPool = true;
+		aZombie->mZombiePhase = PHASE_SNORKEL_INTO_POOL;
+		aZombie->PlayZombieReanim("anim_jumpinpool", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 16.0f);
+		aZombie->mVelX = 0.2f;
+	}
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
