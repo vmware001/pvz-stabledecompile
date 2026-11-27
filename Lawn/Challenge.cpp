@@ -5142,6 +5142,10 @@ void Challenge::IZombiePlaceExtraPlants(int theTargetPlantCount)
 		aTypeCounts[(int)aPlant->mSeedType]++;
 	}
 
+	// 泳池黑夜: 猫尾草只能在水路, 补充植物时不再按比例繁殖猫尾草
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+		aTypeCounts[(int)SEED_CATTAIL] = 0;
+
 	// 按 aExtraCount / aMainCount 的比例分配, 再用最大余数法调平到恰好 aExtraCount 棵
 	int aAllocCounts[NUM_SEED_TYPES] = {};
 	float aAllocRemainders[NUM_SEED_TYPES] = {};
@@ -5299,6 +5303,7 @@ static bool IZombieIsOutputPlant(SeedType theSeedType)
 
 void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormationType)
 {
+
 	Plant* aPlants[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
 	SeedType aOldTypes[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
 	SeedType aNewTypes[MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y];
@@ -5386,16 +5391,21 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			aNewType = IZombiePickAttackingPlantForChomper();
 		}
 
-		// 黑夜屋顶: 最左三列(0~2)的射手统一换成投手(先替换, 之后的火炬判定按新类型计算)
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT && aPlant->mPlantCol >= 0 && aPlant->mPlantCol <= 2)
+		// 黑夜屋顶: 左侧四列(0~3)不许有射手, 统一换成投手/蘑菇(先替换, 之后的火炬判定按新类型计算);
+		// 右侧两列(4~5)保持原样.
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT && aPlant->mPlantCol >= 0 && aPlant->mPlantCol <= 3)
 		{
-			if (aOldType == SEED_PEASHOOTER || aOldType == SEED_CACTUS)
+			if (aOldType == SEED_PEASHOOTER)
 				aNewType = SEED_CABBAGEPULT;
-			else if (aOldType == SEED_REPEATER)
+			else if (aOldType == SEED_SNOWPEA || aOldType == SEED_REPEATER)
 				aNewType = SEED_MELONPULT;
 			else if (aOldType == SEED_GATLINGPEA)
 				aNewType = SEED_WINTERMELON;
-			// 三线射手保持不变
+			else if (aOldType == SEED_THREEPEATER)
+				aNewType = SEED_GLOOMSHROOM;
+			else if (aOldType == SEED_PUFFSHROOM)
+				aNewType = SEED_FUMESHROOM;
+			// 裂荚射手保持不变
 		}
 
 		if ((mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
@@ -5594,23 +5604,100 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			aOccupied[aPlant->mPlantCol][aPlant->mRow] = true;
 	}
 
-	// 黑夜屋顶: 最后兜底一次(火炬无效替换等后续规则可能又改出射手), 保证最左三列只剩投手
+	// 泳池黑夜: 兜底保证没有陆地格上的猫尾草(优先挪到空的水路格, 挪不动就换成玉米投手);
+	// 同时保证每关至少 4 朵向日葵(不够就把其它主体植物改成向日葵).
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+	{
+		Plant* aPoolFixPlant = nullptr;
+		while (mBoard->IteratePlants(aPoolFixPlant))
+		{
+			if (aPoolFixPlant->mSeedType != SEED_CATTAIL)
+				continue;
+			if (aPoolFixPlant->mRow >= 0 && aPoolFixPlant->mRow < MAX_GRID_SIZE_Y &&
+				mBoard->mPlantRow[aPoolFixPlant->mRow] == PlantRowType::PLANTROW_POOL)
+				continue;
+
+			bool aRelocated = false;
+			for (int aRow = 0; aRow < aMoveRows && !aRelocated; aRow++)
+			{
+				if (mBoard->mPlantRow[aRow] != PlantRowType::PLANTROW_POOL)
+					continue;
+				for (int aCol = 0; aCol < 5 && !aRelocated; aCol++)
+				{
+					if (mBoard->IsIceAt(aCol, aRow) ||
+						mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) != nullptr)
+						continue;
+					aPoolFixPlant->mPlantCol = aCol;
+					aPoolFixPlant->mRow = aRow;
+					aPoolFixPlant->mStartRow = aRow;
+					aPoolFixPlant->mX = mBoard->GridToPixelX(aCol, aRow);
+					aPoolFixPlant->mY = mBoard->GridToPixelY(aCol, aRow);
+					aPoolFixPlant->mRenderOrder = aPoolFixPlant->CalcRenderOrder();
+					aPoolFixPlant->UpdateReanim();
+					aRelocated = true;
+				}
+			}
+			if (!aRelocated)
+			{
+				// 没有空的水路格: 改成玉米投手(陆地上也能用的投手)
+				aPoolFixPlant->RemoveEffects();
+				aPoolFixPlant->PlantInitialize(aPoolFixPlant->mPlantCol, aPoolFixPlant->mRow, SEED_KERNELPULT, SEED_NONE);
+				IZombieSetupPlant(aPoolFixPlant);
+			}
+		}
+
+		int aSunflowerCount = 0;
+		Plant* aSunPlant = nullptr;
+		while (mBoard->IteratePlants(aSunPlant))
+		{
+			if (aSunPlant->mSeedType == SEED_SUNFLOWER && aSunPlant->mPlantCol >= 0)
+				aSunflowerCount++;
+		}
+		if (aSunflowerCount < 4)
+		{
+			Plant* aConvertPlant = nullptr;
+			while (aSunflowerCount < 4 && mBoard->IteratePlants(aConvertPlant))
+			{
+				if (aConvertPlant->mSeedType == SEED_SUNFLOWER || aConvertPlant->mSeedType == SEED_PUMPKINSHELL ||
+					aConvertPlant->mSeedType == SEED_LILYPAD || aConvertPlant->mPlantCol < 0)
+					continue;
+				aConvertPlant->RemoveEffects();
+				aConvertPlant->PlantInitialize(aConvertPlant->mPlantCol, aConvertPlant->mRow, SEED_SUNFLOWER, SEED_NONE);
+				IZombieSetupPlant(aConvertPlant);
+				aSunflowerCount++;
+			}
+		}
+	}
+
+	// 黑夜屋顶: 最后兜底一次(火炬无效替换等后续规则可能又改出射手), 保证左侧四列只剩投手/蘑菇,
+	// 并且整关不允许出现地刺/地刺王.
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
 	{
 		Plant* aFixPlant = nullptr;
 		while (mBoard->IteratePlants(aFixPlant))
 		{
 			SeedType aFixType = aFixPlant->mSeedType;
-			if (aFixType != SEED_PEASHOOTER && aFixType != SEED_CACTUS &&
-				aFixType != SEED_REPEATER && aFixType != SEED_GATLINGPEA)
+			SeedType aFixNew = SEED_NONE;
+			if (aFixType == SEED_SPIKEWEED || aFixType == SEED_SPIKEROCK)
+			{
+				// 屋顶不许地刺/地刺王: 统一换成卷心菜投手
+				aFixNew = SEED_CABBAGEPULT;
+			}
+			else if (aFixPlant->mPlantCol >= 0 && aFixPlant->mPlantCol <= 3)
+			{
+				if (aFixType == SEED_PEASHOOTER)
+					aFixNew = SEED_CABBAGEPULT;
+				else if (aFixType == SEED_SNOWPEA || aFixType == SEED_REPEATER)
+					aFixNew = SEED_MELONPULT;
+				else if (aFixType == SEED_GATLINGPEA)
+					aFixNew = SEED_WINTERMELON;
+				else if (aFixType == SEED_THREEPEATER)
+					aFixNew = SEED_GLOOMSHROOM;
+				else if (aFixType == SEED_PUFFSHROOM)
+					aFixNew = SEED_FUMESHROOM;
+			}
+			if (aFixNew == SEED_NONE)
 				continue;
-			if (aFixPlant->mPlantCol < 0 || aFixPlant->mPlantCol > 2)
-				continue;
-			SeedType aFixNew = SEED_CABBAGEPULT;
-			if (aFixType == SEED_REPEATER)
-				aFixNew = SEED_MELONPULT;
-			else if (aFixType == SEED_GATLINGPEA)
-				aFixNew = SEED_WINTERMELON;
 			aFixPlant->RemoveEffects();
 			aFixPlant->PlantInitialize(aFixPlant->mPlantCol, aFixPlant->mRow, aFixNew, SEED_NONE);
 			IZombieSetupPlant(aFixPlant);
@@ -5632,7 +5719,7 @@ static int sIZThemeLastSeen[8] = { -999, -999, -999, -999, -999, -999, -999, -99
 static int sIZThemeRecent[2] = { -1, -1 };
 static int sIZThemeRound = 0;
 
-static int IZombiePickThemeId(bool theSpecialGroup)
+static int IZombiePickThemeId(bool theSpecialGroup, bool theExcludeTilt)
 {
     int aCandidates[8];
     int aWeights[8];
@@ -5641,6 +5728,10 @@ static int IZombiePickThemeId(bool theSpecialGroup)
     {
         bool aInGroup = theSpecialGroup ? (aTheme <= 4) : (aTheme >= 5);
         if (!aInGroup)
+            continue;
+
+        // 黑夜屋顶不参与"倾斜"阵型/主题(2)
+        if (theExcludeTilt && aTheme == 2)
             continue;
 
         // 连续两把都是这个主题时, 下一把不再选它(综合/控制除外)
@@ -5654,7 +5745,21 @@ static int IZombiePickThemeId(bool theSpecialGroup)
     }
 
     if (aCount == 0)
-        return theSpecialGroup ? RandRangeInt(0, 4) : RandRangeInt(5, 7);
+    {
+        if (theSpecialGroup)
+        {
+            if (theExcludeTilt)
+            {
+                // 只在 0/1/3/4 里挑
+                int aFallback = RandRangeInt(0, 3);
+                if (aFallback >= 2)
+                    aFallback++;
+                return aFallback;
+            }
+            return RandRangeInt(0, 4);
+        }
+        return RandRangeInt(5, 7);
+    }
 
     int aTotalWeight = 0;
     for (int i = 0; i < aCount; i++)
@@ -5832,9 +5937,11 @@ void Challenge::IZombieInitLevel()
 		{
 			aPuffshroomCount = RandRangeInt(ClampInt(2 + mSurvivalStage / 3, 2, 5), ClampInt(3 + mSurvivalStage / 2, 2, 7));
 		}
-		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
-			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
 			aPuffshroomCount = min(aPuffshroomCount, 5);
+		// 泳池黑夜: 小喷菇最多 4 棵, 保证向日葵至少 4 朵(8 - 4)
+		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+			aPuffshroomCount = min(aPuffshroomCount, 4);
 		int aSunflowerCount = 8 - aPuffshroomCount;
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
@@ -5864,8 +5971,15 @@ void Challenge::IZombieInitLevel()
 		int aThemeId = -1;
 		if (aSpecialFormation)
 		{
-			aFormationType = aForcedFormation >= 0 ? aForcedFormation : (aUseThemeWeights ? IZombiePickThemeId(true) : RandRangeInt(0, 4));
+			aFormationType = aForcedFormation >= 0 ? aForcedFormation :
+				(aUseThemeWeights ? IZombiePickThemeId(true, mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT) : RandRangeInt(0, 4));
 			aThemeId = aFormationType;
+			// 黑夜屋顶: 不参与"倾斜"阵型(修改器强制指定时改成爆炸阵)
+			if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT && aFormationType == 2)
+			{
+				aFormationType = 1;
+				aThemeId = 1;
+			}
 			switch (aFormationType)
 			{
 			case 0:  // 输出阵
@@ -5900,7 +6014,7 @@ void Challenge::IZombieInitLevel()
 			else if (aUseThemeWeights)
 			{
 				// 非特殊阵型: 按主题权重抽 综合(5)/控制(6)/即死(7) 之一, 再映射到内部阵型类型
-				aThemeId = IZombiePickThemeId(false);
+				aThemeId = IZombiePickThemeId(false, false);
 				if (aThemeId == 5)
 					aFormationType = RandRangeInt(0, 2);
 				else if (aThemeId == 6)
@@ -5975,12 +6089,13 @@ void Challenge::IZombieInitLevel()
 				for (int aCol = 0; aCol < 6; aCol++)
 				{
 					if (mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION) == nullptr)
-						IZombiePlacePlantInSquare(SEED_PEASHOOTER, aCol, aRow);
+						IZombiePlacePlantInSquare(aCol <= 3 ? SEED_CABBAGEPULT : SEED_PEASHOOTER, aCol, aRow);
 					if (mBoard->GetTopPlantAt(aCol, aRow, PlantPriority::TOPPLANT_ONLY_UNDER_PLANT) == nullptr)
 						IZombieSetupPlant(mBoard->NewPlant(aCol, aRow, SEED_FLOWERPOT));
 				}
 			}
 		}
+
 		break;
 	}
 	default:

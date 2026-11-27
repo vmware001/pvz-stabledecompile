@@ -3249,6 +3249,10 @@ bool Board::CanAddBobSled()
 //0x40DDC0
 Zombie* Board::AddZombieInRow(ZombieType theZombieType, int theRow, int theFromWave)
 {
+	// 黑夜屋顶: 普通僵尸统一换成小鬼僵尸(波次生成、卡槽放置、修改器出怪都走这里)
+	if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT && theZombieType == ZombieType::ZOMBIE_NORMAL)
+		theZombieType = ZombieType::ZOMBIE_IMP;
+
 	if (mZombies.mSize >= mZombies.mMaxSize - 1)
 	{
 		TodTrace("Too many zombies!!");
