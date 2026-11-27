@@ -4884,7 +4884,8 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	// 不再生成缠绕水草植物实体, 只给僵尸挂上缠绕动画并让它慢慢沉入水底(沉没与死亡由 Zombie 侧处理)
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
 		mBoard->IsPoolSquare(theGridX, theGridY) &&
-		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_DANCER ||
+		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_REDEYE_GARGANTUAR ||
+			theZombieType == ZOMBIE_DANCER ||
 			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT ||
 			theZombieType == ZOMBIE_POGO || theZombieType == ZOMBIE_BACKUP_DANCER ||
 			theZombieType == ZOMBIE_NEWSPAPER || theZombieType == ZOMBIE_YETI ||
