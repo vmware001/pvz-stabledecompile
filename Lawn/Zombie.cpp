@@ -142,7 +142,6 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mSquished = false;
     mNoSquishSound = false;
     mSquishedCountdown = 0;
-    mSquishedImage = nullptr;
     mPoolNightDrown = false;
     mPhaseCounter = 0;
     mHitUmbrella = false;
@@ -5187,8 +5186,6 @@ void Zombie::Update()
             if (--mSquishedCountdown <= 0)
             {
                 mSquished = false;
-                delete mSquishedImage;
-                mSquishedImage = nullptr;
                 DieWithLoot();
             }
             mX = (int)mPosX;
@@ -7589,8 +7586,9 @@ void Zombie::Draw(Graphics* g)
 
     if (mSquished)
     {
-        // 倭瓜压扁动画: 图案已在快照时按脚底压扁, 用与活着时相同的 g 变换在 (-256,-256) 绘制,
-        // 与活着的僵尸逐点重合(底部对齐), 结束前淡出
+        // 倭瓜压扁动画: 本体动画已纵向压到 1/4(见 Zombie::Squish), 直接按正常位置绘制, 结束前淡出
+        ZombieDrawPosition aSquishDrawPos;
+        GetDrawPos(aSquishDrawPos);
         g->PushState();
         g->SetLinearBlend(true);
         if (mSquishedCountdown < 60)
@@ -7599,8 +7597,8 @@ void Zombie::Draw(Graphics* g)
             g->SetColorizeImages(true);
             g->SetColor(Color(255, 255, 255, anAlpha));
         }
-        if (mSquishedImage != nullptr)
-            g->DrawImage(mSquishedImage, -256.0f, -256.0f);
+        if (mBodyReanimID != ReanimationID::REANIMATIONID_NULL)
+            DrawReanim(g, aSquishDrawPos, RENDER_GROUP_NORMAL);
         g->PopState();
         return;
     }
@@ -9224,8 +9222,6 @@ void Zombie::Squish()
 
 		mSquished = true;
 		mSquishedCountdown = 30;
-		delete mSquishedImage;
-		mSquishedImage = nullptr;
 		mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
 		return;
 	}
@@ -9255,11 +9251,15 @@ void Zombie::Squish()
 	if (!mNoSquishSound)
 		mApp->PlayFoley(FoleyType::FOLEY_THUMP);
 
-	// 捕获实时姿态快照(含当前防具/朝向/体型)作为压扁图案, 再冻结阶段
-	delete mSquishedImage;
-	mSquishedImage = nullptr;
+	// 压扁显示: 直接把本体动画的纵向缩放改成 1/4(动画以脚底为原点, 所以压向地面).
+	// 不再做离屏渲染 + 贴图回读快照: 快照方案每次压扁都会新建/删除带 SDL 纹理的 MemoryImage,
+	// 还会额外调一次 Reanimation::Update(), 多次压扁/关卡切换后容易崩溃.
 	if (mBodyReanimID != ReanimationID::REANIMATIONID_NULL)
-		mSquishedImage = mApp->mReanimatorCache->MakeSquishedZombieFrame(this);
+	{
+		Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+		if (aBodyReanim != nullptr)
+			aBodyReanim->OverrideScale(1.0f, 0.25f);
+	}
 	mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
 }
 
@@ -10317,7 +10317,6 @@ Zombie::~Zombie()
 {
     AttachmentDie(mAttachmentID);
     StopZombieSound();
-    delete mSquishedImage;
 }
 
 //0x531990
