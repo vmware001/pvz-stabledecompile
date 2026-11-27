@@ -2631,7 +2631,7 @@ bool LawnApp::DebugKeyDown(int theKey)
 //0x4522E0
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
-	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced" || theParamName == "--iz-pool-night" || theParamName == "--iz-roof-night")
+	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced" || theParamName == "--iz-pool-night" || theParamName == "--iz-roof-night" || theParamName == "--iz-resume")
 		return;
 	if (theParamName == "-tod")
 	{
@@ -3591,7 +3591,9 @@ void LawnApp::LoadingCompleted()
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
 			else if (strstr(GetCommandLineA(), "--iz-roof-night") != nullptr)
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
-			PreNewGame(aMode, false);
+			// 调试用: 带 --iz-resume 时走真实菜单流程(先尝试读档, 有存档会弹"是否继续"), 方便验证存档/读档
+			bool aLookForSavedGame = strstr(GetCommandLineA(), "--iz-resume") != nullptr;
+			PreNewGame(aMode, aLookForSavedGame);
 			StartPlaying();
 			return;
 		}
