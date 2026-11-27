@@ -1861,6 +1861,28 @@ void Board::InitLevel()
 	{
 		TOD_ASSERT(mSeedBank->mNumPackets == 6);
 		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);
+		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
+		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_PAIL);
+		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_ZOMBIE_BUNGEE);
+		mSeedBank->mSeedPackets[4].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
+		mSeedBank->mSeedPackets[5].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
+	}
+	else if (aGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_9)
+	{
+		TOD_ASSERT(mSeedBank->mNumPackets == 8);
+		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);
+		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
+		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_POLEVAULTER);
+		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_ZOMBIE_PAIL);
+		mSeedBank->mSeedPackets[4].SetPacketType(SeedType::SEED_ZOMBIE_BUNGEE);
+		mSeedBank->mSeedPackets[5].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
+		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
+		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
+	}
+	else if (mApp->IsEndlessIZombie(aGameMode))
+	{
+		TOD_ASSERT(mSeedBank->mNumPackets == 15);
+		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIE_IMP);
 		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_PUMPKINSHELL);
 		mSeedBank->mSeedPackets[2].SetPacketType(SeedType::SEED_ZOMBIE_TRAFFIC_CONE);
 		mSeedBank->mSeedPackets[3].SetPacketType(SeedType::SEED_ZOMBIE_POLEVAULTER);
@@ -1869,7 +1891,7 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[6].SetPacketType(SeedType::SEED_ZOMBIE_DIGGER);
 		mSeedBank->mSeedPackets[7].SetPacketType(SeedType::SEED_ZOMBIE_SCREEN_DOOR);
 		mSeedBank->mSeedPackets[8].SetPacketType(SeedType::SEED_ZOMBIE_LADDER);
-		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_MAGNETSHROOM);
+		mSeedBank->mSeedPackets[9].SetPacketType(SeedType::SEED_MAGNETSHROOM);   // 原来放三叶草, 改成磁力菇(对应高坚果僵尸)
 		mSeedBank->mSeedPackets[10].SetPacketType(SeedType::SEED_ZOMBIE_FOOTBALL);
 		mSeedBank->mSeedPackets[11].SetPacketType(SeedType::SEED_ZOMBONI);
 		mSeedBank->mSeedPackets[12].SetPacketType(SeedType::SEED_ZOMBIE_BALLOON);
