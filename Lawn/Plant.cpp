@@ -6507,6 +6507,15 @@ int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
     if (gPvzToolkitBridge.flags & TK_CHEAT_FREE_PLANT)
         return 0;
 
+    // 泳池黑夜: 舞王僵尸 225 阳光, 普通僵尸 50 阳光
+    if (gLawnApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+    {
+        if (theSeedType == SeedType::SEED_ZOMBIE_DANCER)
+            return 225;
+        if (theSeedType == SeedType::SEED_ZOMBIE_NORMAL)
+            return 50;
+    }
+
     if (gLawnApp->IsEndlessIZombie(gLawnApp->mGameMode) && theSeedType >= SeedType::SEED_PEASHOOTER && theSeedType <= SeedType::SEED_CABBAGEPULT)
     {
         return GetIZombiePlantCosts(gLawnApp->mGameMode)[(int)theSeedType];

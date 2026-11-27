@@ -4858,16 +4858,6 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	{
 		aZombie->mInPool = true;
 		aZombie->mAltitude = -40.0f * aZombie->mScaleZombie;
-		aZombie->mZombiePhase = PHASE_SNORKEL_WALKING_IN_POOL;
-		aZombie->mZombieAttackRect = Rect(-5, 0, 55, 115);
-		aZombie->PlayZombieReanim("anim_swim", ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME, 0, 12.0f);
-	}
-	// 泳池黑夜: 撑杆替换出来的海豚骑士按"已经在泳池里骑行"初始化.
-	// 原版入水时 mPosX -= 70、绘制再 +70 抵消, 这样骑行时显示在放置格上; 放置列已往右挪一列(见上面的替换分支).
-	if (aDolphinDiveIn)
-	{
-		// 从池子右侧的自然入水点入水, 走原版"跳入水中 -> 骑行"流程
-		aZombie->mPosX = 705.0f;
 		aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
 	}
 	else if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
@@ -4884,7 +4874,8 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	// 不再生成缠绕水草植物实体, 只给僵尸挂上缠绕动画并让它慢慢沉入水底(沉没与死亡由 Zombie 侧处理)
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
 		mBoard->IsPoolSquare(theGridX, theGridY) &&
-		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_REDEYE_GARGANTUAR ||
+		(theZombieType == ZOMBIE_ZAMBONI || theZombieType == ZOMBIE_BOBSLED || theZombieType == ZOMBIE_GARGANTUAR ||
+			theZombieType == ZOMBIE_REDEYE_GARGANTUAR ||
 			theZombieType == ZOMBIE_DANCER ||
 			theZombieType == ZOMBIE_DIGGER || theZombieType == ZOMBIE_CATAPULT ||
 			theZombieType == ZOMBIE_POGO || theZombieType == ZOMBIE_BACKUP_DANCER ||
