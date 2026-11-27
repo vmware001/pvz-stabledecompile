@@ -5218,6 +5218,18 @@ static bool IZombieCantHavePumpkin(SeedType theSeedType)
 
 // 小喷菇 50% 替换用的攻击性植物候选(黑夜增强/黑夜困难/黑夜泳池);
 // 每种植物本关最多替换一次(比如不能同时出现两个仙人掌), 候选用完就不再替换.
+// 随机挑一种攻击性植物(不限次数; 泳池黑夜水路大嘴花替换用)
+static SeedType IZombiePickAttackingPlantForChomper()
+{
+    static const SeedType aCandidates[] =
+    {
+        SEED_PEASHOOTER, SEED_SNOWPEA, SEED_REPEATER, SEED_THREEPEATER, SEED_SPLITPEA,
+        SEED_CACTUS, SEED_STARFRUIT, SEED_CABBAGEPULT, SEED_KERNELPULT,
+        SEED_FUMESHROOM, SEED_MELONPULT,
+    };
+    return aCandidates[Rand((int)(sizeof(aCandidates) / sizeof(aCandidates[0])))];
+}
+
 static SeedType IZombiePickAttackingPlantForPuffshroom(bool* theUsed)
 {
     static const SeedType aCandidates[] =
@@ -5313,6 +5325,14 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			{
 				if (aOldType == SEED_REPEATER && Rand(100) < 20)
 					aNewType = SEED_GATLINGPEA;
+			}
+
+			// 泳池黑夜: 水路的大嘴花 2/3 概率替换成攻击性植物
+			if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+				mBoard->mPlantRow[aPlant->mRow] == PlantRowType::PLANTROW_POOL &&
+				aOldType == SEED_CHOMPER && aNewType == aOldType && Rand(3) < 2)
+			{
+				aNewType = IZombiePickAttackingPlantForChomper();
 			}
 
 			// 黑夜增强 / 黑夜困难 / 黑夜泳池: 每个小喷菇 50% 概率替换成攻击性植物
