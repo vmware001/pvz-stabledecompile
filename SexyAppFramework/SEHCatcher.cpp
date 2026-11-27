@@ -401,6 +401,10 @@ void SEHCatcher::DoHandleDebugEvent(LPEXCEPTION_POINTERS lpEP)
 
 	aDebugDump += aWalkString;
 
+	// 无论上面是否成功, 都附加一份手工 EBP 链回溯(ImageHelp/StackWalk64 在崩溃时经常失败)
+	aDebugDump += "\r\nManual frame walk:\r\n";
+	aDebugDump += ManualFrameWalk(lpEP->ContextRecord);
+
 	aDebugDump += "\r\n";
 
 #ifdef _WIN64
@@ -548,6 +552,60 @@ std::string SEHCatcher::IntelWalk(PCONTEXT theContext, int theSkipCount)
 	return aDebugDump;
 }
 
+// 手工栈回溯: 直接用 x86 EBP 链(StackWalk64/ImageHelp 在部分崩溃里会失败, 拿不到栈).
+// 只读取当前进程内存, 每一步都做范围/对齐检查, 任何异常数据都会停止回溯.
+std::string SEHCatcher::ManualFrameWalk(PCONTEXT theContext)
+{
+	char aBuffer[512];
+	std::string aResult;
+
+#ifdef _WIN64
+	aResult = "ManualFrameWalk unsupported on x64\r\n";
+	return aResult;
+#else
+	DWORD aStackBase = __readfsdword(0x04);   // NT_TIB.StackBase
+	DWORD aStackLimit = __readfsdword(0x08);  // NT_TIB.StackLimit
+	DWORD aEbp = theContext->Ebp;
+	DWORD aEip = theContext->Eip;
+
+	DWORD aImageBase = (DWORD)GetModuleHandle(NULL);
+	sprintf(aBuffer, "ModuleBase: %08X\r\n", aImageBase);
+	aResult += aBuffer;
+	sprintf(aBuffer, "Frame 0: %08X  rva=%08X  symVA=%08X\r\n", aEip, aEip - aImageBase, 0x400000 + (aEip - aImageBase));
+	aResult += aBuffer;
+
+	for (int aFrame = 1; aFrame < 32; aFrame++)
+	{
+		if (aEbp == 0 || (aEbp & 3) != 0)
+			break;
+		if (aEbp < aStackLimit || aEbp + 8 > aStackBase)
+			break;
+
+		DWORD aNextEbp = 0;
+		DWORD aRetAddr = 0;
+		SIZE_T aRead = 0;
+		if (!ReadProcessMemory(GetCurrentProcess(), (LPCVOID)aEbp, &aNextEbp, sizeof(aNextEbp), &aRead) || aRead != sizeof(aNextEbp))
+			break;
+		if (!ReadProcessMemory(GetCurrentProcess(), (LPCVOID)(aEbp + 4), &aRetAddr, sizeof(aRetAddr), &aRead) || aRead != sizeof(aRetAddr))
+			break;
+		if (aRetAddr == 0)
+			break;
+
+		char aModule[MAX_PATH] = "";
+		DWORD aSection = 0, aOffset = 0;
+		GetLogicalAddress((PVOID)aRetAddr, aModule, sizeof(aModule), aSection, aOffset);
+		sprintf(aBuffer, "Frame %d: %08X  rva=%08X  symVA=%08X  %s+0x%X  ebp=%08X\r\n",
+			aFrame, aRetAddr, aRetAddr - aImageBase, 0x400000 + (aRetAddr - aImageBase), GetFilename(aModule).c_str(), aOffset, aEbp);
+		aResult += aBuffer;
+
+		if (aNextEbp <= aEbp)   // 必须向高地址增长, 否则链已损坏
+			break;
+		aEbp = aNextEbp;
+	}
+#endif
+
+	return aResult;
+}
 std::string SEHCatcher::ImageHelpWalk(PCONTEXT theContext, int theSkipCount)
 {
 	char aBuffer[2048];

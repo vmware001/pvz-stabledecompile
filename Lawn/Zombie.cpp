@@ -9737,43 +9737,43 @@ int Zombie::TakeShieldDamage(int theDamage, unsigned int theDamageFlags)
         Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
         if (mShieldType == ShieldType::SHIELDTYPE_DOOR && aDamageIndexAfterDamage == 1)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_SCREENDOOR2);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_SCREENDOOR2);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_DOOR && aDamageIndexAfterDamage == 2)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_SCREENDOOR3);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_SCREENDOOR3);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_TRASHCAN && aDamageIndexAfterDamage == 1)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_TRASHCAN2);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_TRASHCAN2);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_TRASHCAN && aDamageIndexAfterDamage == 2)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_TRASHCAN3);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("anim_screendoor", IMAGE_REANIM_ZOMBIE_TRASHCAN3);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_NEWSPAPER && aDamageIndexAfterDamage == 1)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("Zombie_paper_paper", IMAGE_REANIM_ZOMBIE_PAPER_PAPER2);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("Zombie_paper_paper", IMAGE_REANIM_ZOMBIE_PAPER_PAPER2);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_NEWSPAPER && aDamageIndexAfterDamage == 2)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("Zombie_paper_paper", IMAGE_REANIM_ZOMBIE_PAPER_PAPER3);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("Zombie_paper_paper", IMAGE_REANIM_ZOMBIE_PAPER_PAPER3);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_LADDER && aDamageIndexAfterDamage == 1)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("Zombie_ladder_1", IMAGE_REANIM_ZOMBIE_LADDER_1_DAMAGE1);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("Zombie_ladder_1", IMAGE_REANIM_ZOMBIE_LADDER_1_DAMAGE1);
         }
         else if (mShieldType == ShieldType::SHIELDTYPE_LADDER && aDamageIndexAfterDamage == 2)
         {
-            TOD_ASSERT(aBodyReanim);
-            aBodyReanim->SetImageOverride("Zombie_ladder_1", IMAGE_REANIM_ZOMBIE_LADDER_1_DAMAGE2);
+            if (aBodyReanim != nullptr)
+                aBodyReanim->SetImageOverride("Zombie_ladder_1", IMAGE_REANIM_ZOMBIE_LADDER_1_DAMAGE2);
         }
     }
 

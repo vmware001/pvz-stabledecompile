@@ -81,6 +81,7 @@ public:
 	static bool				LoadImageHelp();
 	static void				UnloadImageHelp();
 	static std::string		IntelWalk(PCONTEXT theContext, int theSkipCount);
+static std::string		ManualFrameWalk(PCONTEXT theContext);
 	static std::string		ImageHelpWalk(PCONTEXT theContext, int theSkipCount);
 	static std::string		GetSysInfo();
 	static void				GetSymbolsFromMapFile(std::string &theDebugDump);
