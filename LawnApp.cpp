@@ -1463,6 +1463,52 @@ bool LawnApp::WriteCurrentUserConfig()
 	return true;
 }
 
+// 存档是整块结构体裸拷贝, 读档失败(旧版本/写坏/布局变化)时直接 EraseFile 会把玩家进度彻底删掉.
+// 这里在成功读档后留一份 .bak; 主存档读不出来时回退 .bak, 尽量保住进度.
+static bool CopyFileRaw(const SexyString& theSrc, const SexyString& theDst)
+{
+	FILE* aIn = fopen(theSrc.c_str(), "rb");
+	if (aIn == nullptr)
+		return false;
+	FILE* aOut = fopen(theDst.c_str(), "wb");
+	if (aOut == nullptr)
+	{
+		fclose(aIn);
+		return false;
+	}
+	char aBuf[65536];
+	size_t aRead = 0;
+	bool aOk = true;
+	while ((aRead = fread(aBuf, 1, sizeof(aBuf), aIn)) > 0)
+	{
+		if (fwrite(aBuf, 1, aRead, aOut) != aRead)
+		{
+			aOk = false;
+			break;
+		}
+	}
+	fclose(aIn);
+	fclose(aOut);
+	return aOk;
+}
+
+static void BackupSaveFile(const SexyString& theFileName)
+{
+	if (gLawnApp == nullptr || !gLawnApp->FileExists(theFileName))
+		return;
+	CopyFileRaw(theFileName, theFileName + _S(".bak"));
+}
+
+// 开始新游戏前清掉旧存档: 改名成 .bad 保留现场(方便找回/诊断), 不再直接删除
+static void RetireSaveFile(const SexyString& theFileName)
+{
+	if (gLawnApp == nullptr || !gLawnApp->FileExists(theFileName))
+		return;
+	SexyString aBadName = theFileName + _S(".bad");
+	DeleteFile(aBadName.c_str());
+	MoveFile(theFileName.c_str(), aBadName.c_str());
+}
+
 //0x44F560
 void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 {
@@ -1477,7 +1523,7 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 		return;
 
 	SexyString aFileName = GetSavedGameName(mGameMode, mPlayerInfo->mId);
-	EraseFile(aFileName);
+	RetireSaveFile(aFileName);
 	NewGame();
 }
 
@@ -1494,7 +1540,7 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame, int the
 		return;
 
 	SexyString aFileName = GetSavedGameName(mGameMode, mPlayerInfo->mId, theLevel);
-	EraseFile(aFileName);
+	RetireSaveFile(aFileName);
 	int thePlayerLevel = mPlayerInfo->mLevel;
 	bool isReplaying = mPlayerLevelRef > theLevel;
 	mPlayerLevelRef = isReplaying ? thePlayerLevel : -1;
@@ -1556,6 +1602,23 @@ bool LawnApp::TryLoadGame(int theLevel)
 		MakeNewBoard();
 		if (mBoard->LoadGame(aSaveName))
 		{
+			BackupSaveFile(aSaveName);   // 记下最近一次能成功读出来的存档
+			mFirstTimeGameSelector = false;
+			DoContinueDialog();
+			return true;
+		}
+
+		KillBoard();
+	}
+
+	// 主存档打不开(旧版本存档/上次写到一半崩溃/结构体布局变了)时, 回退 .bak, 避免直接丢进度
+	SexyString aBackupName = aSaveName + _S(".bak");
+	if (this->FileExists(aBackupName))
+	{
+		MakeNewBoard();
+		if (mBoard->LoadGame(aBackupName))
+		{
+			CopyFileRaw(aBackupName, aSaveName);   // 用备份修复主存档
 			mFirstTimeGameSelector = false;
 			DoContinueDialog();
 			return true;

@@ -126,6 +126,14 @@ void Sexy::SetAppDataFolder(const std::string& thePath)
 	if (CheckForVista())
 	{
 		std::string aPath = thePath;
+#ifdef _DEBUG
+		// 测试用: PVZ_USERDATA 覆盖存档/配置目录(便于在受限环境下验证存档链路)
+		{
+			const char* aTestDir = getenv("PVZ_USERDATA");
+			if (aTestDir != nullptr && aTestDir[0] != 0)
+				aPath = aTestDir;
+		}
+#endif
 		if (!aPath.empty())
 		{
 			if (aPath[aPath.length() - 1] != '\\' && aPath[aPath.length() - 1] != '/')

@@ -2195,8 +2195,10 @@ void Board::UpdateLevelEndSequence()
 			}
 		}
 
-		if (mNextSurvivalStageCounter == 1 && (mApp->IsSurvivalMode() || mApp->IsLastStandEndless(mApp->mGameMode)))
+		if (mNextSurvivalStageCounter == 1 && (mApp->IsSurvivalMode() || mApp->IsLastStandEndless(mApp->mGameMode) || LawnApp::IsEndlessIZombie(mApp->mGameMode)))
 		{
+			// IZE(含满花/增强/困难/池夜/屋顶夜)也按"每轮结束存一次"处理:
+			// 之前只有生存/Last Stand 无尽会在这里存, IZE 中途退出或崩溃就只剩上一次手动退出时的存档, 看起来像"进度没保留".
 			TryToSaveGame();
 		}
 
