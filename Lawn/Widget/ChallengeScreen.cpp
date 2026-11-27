@@ -107,6 +107,7 @@ ChallengeDefinition gChallengeDefs[NUM_CHALLENGE_MODES] = {
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED,          11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  3,  _S("IZE Hard") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED,              11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  2,  _S("IZE Enhanced") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT,            11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  4,  _S("IZE Pool Night") },
+	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT,            11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      4,  4,  _S("IZE Roof Night") },
 #ifdef _MOBILE_MINIGAMES
 	{ GameMode::GAMEMODE_CHALLENGE_VASEBREAKER,				   10,  ChallengePage::CHALLENGE_PAGE_LIMBO_CHALLENGE,       3,  2,  _S("[VASE_BREAKER]") },
 	{ GameMode::GAMEMODE_CHALLENGE_BUTTERED_POPCORN,		   10,  ChallengePage::CHALLENGE_PAGE_LIMBO_CHALLENGE,       3,  3,  _S("[BUTTERED_POPCORN]") },
@@ -302,7 +303,8 @@ bool ChallengeScreen::IsIZombieLevel(GameMode theGameMode)
 {
 	return (theGameMode >= GAMEMODE_PUZZLE_I_ZOMBIE_1 && theGameMode <= GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS) ||
 		theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
-		theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+		theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
+		theGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 }
 
 //0x42E3C0
@@ -384,7 +386,8 @@ int ChallengeScreen::MoreTrophiesNeeded(int theChallengeIndex)
 		else if (IsIZombieLevel(aDef.mChallengeMode))
 		{
 			if (aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
-				aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+				aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
+				aDef.mChallengeMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
 				return 0;
 			int aLevelsCompleted = 0;
 			for (ChallengeDefinition& aIZDef : gChallengeDefs)

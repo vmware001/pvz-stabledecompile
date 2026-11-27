@@ -2629,7 +2629,7 @@ bool LawnApp::DebugKeyDown(int theKey)
 //0x4522E0
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
-	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced" || theParamName == "--iz-pool-night")
+	if (theParamName == "--iz-endless" || theParamName == "--iz-plant-icons" || theParamName == "--iz-full-flowers" || theParamName == "--iz-strengthened" || theParamName == "--iz-enhanced" || theParamName == "--iz-pool-night" || theParamName == "--iz-roof-night")
 		return;
 	if (theParamName == "-tod")
 	{
@@ -3391,7 +3391,7 @@ void LawnApp::LoadingCompleted()
 	else
 	{
 #ifdef _DEBUG
-		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr || strstr(GetCommandLineA(), "--iz-enhanced") != nullptr || strstr(GetCommandLineA(), "--iz-pool-night") != nullptr)
+		if (strstr(GetCommandLineA(), "--iz-endless") != nullptr || strstr(GetCommandLineA(), "--iz-full-flowers") != nullptr || strstr(GetCommandLineA(), "--iz-strengthened") != nullptr || strstr(GetCommandLineA(), "--iz-enhanced") != nullptr || strstr(GetCommandLineA(), "--iz-pool-night") != nullptr || strstr(GetCommandLineA(), "--iz-roof-night") != nullptr)
 		{
 			KillBoard();
 			GameMode aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS;
@@ -3403,6 +3403,8 @@ void LawnApp::LoadingCompleted()
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED;
 			else if (strstr(GetCommandLineA(), "--iz-pool-night") != nullptr)
 				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+			else if (strstr(GetCommandLineA(), "--iz-roof-night") != nullptr)
+				aMode = GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 			PreNewGame(aMode, false);
 			StartPlaying();
 			return;
@@ -3782,7 +3784,8 @@ bool LawnApp::IsPuzzleMode()
 		(mGameMode >= GameMode::GAMEMODE_SCARY_POTTER_1 && mGameMode <= GameMode::GAMEMODE_SCARY_POTTER_ENDLESS) ||
 		(mGameMode >= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_1 && mGameMode <= GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS) ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
-		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 }
 
 //0x453710
@@ -3821,7 +3824,8 @@ bool LawnApp::IsEndlessIZombie(GameMode theGameMode)
 {
 	return theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
 		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
-		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
+		theGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 }
 
 //0x453740
@@ -3876,7 +3880,8 @@ bool LawnApp::IsIZombieLevel()
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_9 ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
 		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED ||
-		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT;
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED || mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
+		mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 }
 
 //0x453820

@@ -99,7 +99,8 @@ int gIZombiePlantCosts[33] = {
 
 int* GetIZombiePlantCosts(GameMode theMode)
 {
-    if (theMode != GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED && theMode != GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED && theMode != GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT)
+    if (theMode != GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED && theMode != GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED && theMode != GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+        theMode != GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
         return gIZombiePlantCosts;
 
     static int aEnhancedCosts[33] = {

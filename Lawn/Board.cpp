@@ -1206,6 +1206,7 @@ void Board::PickBackground()
 	case GameMode::GAMEMODE_CHALLENGE_BUNGEE_BLITZ:
 	case GameMode::GAMEMODE_LAST_STAND_STAGE_5:
 	case GameMode::GAMEMODE_LAST_STAND_ENDLESS_STAGE_5:
+	case GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT:
 		mBackground = BackgroundType::BACKGROUND_5_ROOF;
 		break;
 
@@ -7143,6 +7144,16 @@ void Board::DrawBackdrop(Graphics* g)
 		mApp->mPoolEffect->PoolEffectDraw(g, StageIsNight());
 	}
 
+	// 黑夜屋顶: 屋顶背景图是白天的, 用染色重画一张偏蓝的暗背景做出黑夜效果(实体和 UI 在后面绘制, 不受影响)
+	if (mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
+	{
+		g->PushState();
+		g->SetColorizeImages(true);
+		g->SetColor(Color(96, 96, 150));
+		g->DrawImageF(Sexy::IMAGE_BACKGROUND5, -BOARD_OFFSET + WIDESCREEN_OFFSETX, WIDESCREEN_OFFSETY);
+		g->PopState();
+	}
+
 	if (mTutorialState == TutorialState::TUTORIAL_LEVEL_1_PLANT_PEASHOOTER)
 	{
 		g->PushState();
@@ -10895,7 +10906,8 @@ bool Board::StageIsNight()
 		mBackground == BackgroundType::BACKGROUND_6_BOSS ||
 		mBackground == BackgroundType::BACKGROUND_MUSHROOM_GARDEN || 
 		mBackground == BackgroundType::BACKGROUND_ZOMBIQUARIUM ||
-		mBackground == BackgroundType::BACKGROUND_6;
+		mBackground == BackgroundType::BACKGROUND_6 ||
+		(mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT);
 }
 
 //0x41C040
