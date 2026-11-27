@@ -4858,15 +4858,23 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_SNORKEL &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
-		aZombie->mInPool = true;
-		aZombie->mZombiePhase = PHASE_SNORKEL_INTO_POOL;
-		aZombie->PlayZombieReanim("anim_jumpinpool", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 16.0f);
-		aZombie->mVelX = 0.2f;
+		// 放在最后一列时没地方右移, 和"从岸上入水"一样: 放到池子右侧入水点, 交给原版走路->跳水逻辑
+		if (theGridX >= 8)
+		{
+			aZombie->mPosX = 705.0f;
+			aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
+		}
+		else
+		{
+			aZombie->mInPool = true;
+			aZombie->mZombiePhase = PHASE_SNORKEL_INTO_POOL;
+			aZombie->PlayZombieReanim("anim_jumpinpool", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 16.0f);
+			aZombie->mVelX = 0.2f;
 
-		// 跳水动作会让入水点往左偏一格, 和撑杆->海豚一样把放置点往右挪一列
-		if (theGridX < 8)
+			// 跳水动作会让入水点往左偏一格, 和撑杆->海豚一样把放置点往右挪一列
 			theGridX = theGridX + 1;
-		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
+			aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
+		}
 	}
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
