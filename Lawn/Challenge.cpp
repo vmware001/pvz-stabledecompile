@@ -4822,7 +4822,9 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 {
 	// 泳池黑夜: 撑杆僵尸在水路直接替换成海豚骑士僵尸(海豚本来就是水路单位), 陆地行不受影响
 	bool aDolphinDiveIn = false;
-	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_POLEVAULTER &&
+	// 泳池黑夜: 撑杆僵尸放在水路会变成海豚骑士; 原版的海豚骑士僵尸放在水路也走同一套(同样右移一列)
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT &&
+		(theZombieType == ZOMBIE_POLEVAULTER || theZombieType == ZOMBIE_DOLPHIN_RIDER) &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		theZombieType = ZOMBIE_DOLPHIN_RIDER;
