@@ -4852,26 +4852,7 @@ void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int t
 		aZombie->mPosX = mBoard->GridToPixelX(theGridX, theGridY) - 30.0f;
 	}
 
-	// 泳池黑夜: 潜水僵尸放在水路时直接进入"池中游泳"状态(否则它会以陆地走路姿态在水面上走)
-	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_SNORKEL &&
-		mBoard->IsPoolSquare(theGridX, theGridY))
-	{
-		aZombie->mInPool = true;
-		aZombie->mAltitude = -40.0f * aZombie->mScaleZombie;
-		aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
-	}
-	// 泳池黑夜: 潜水僵尸放在水路时按原版"跳入水中"完成状态初始化(由 HEIGHT_IN_TO_POOL 让引擎下沉), 否则它会用陆地走路动作站在水面上.
-	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_SNORKEL &&
-		mBoard->IsPoolSquare(theGridX, theGridY))
-	{
-		aZombie->mInPool = true;
-		aZombie->mZombieHeight = ZombieHeight::HEIGHT_IN_TO_POOL;
-		aZombie->mZombiePhase = PHASE_SNORKEL_WALKING_IN_POOL;
-		aZombie->mZombieAttackRect = Rect(-5, 0, 55, 115);
-		aZombie->PlayZombieReanim("anim_swim", ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME, 0, 12.0f);
-	}
-
-	else if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
+	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT && theZombieType == ZOMBIE_DOLPHIN_RIDER &&
 		mBoard->IsPoolSquare(theGridX, theGridY))
 	{
 		aZombie->mInPool = true;
