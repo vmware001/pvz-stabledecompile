@@ -5347,13 +5347,15 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				}
 				else if (aOldType == SEED_REPEATER)
 				{
-					int aRoll = Rand(3);
-					aNewType = aRoll == 0 ? SEED_KERNELPULT : (aRoll == 1 ? SEED_MELONPULT : SEED_CABBAGEPULT);
+					// 西瓜投手少一点: 玉米 2/6, 西瓜 1/6, 卷心菜 3/6
+					int aRoll = Rand(6);
+					aNewType = aRoll < 2 ? SEED_KERNELPULT : (aRoll == 2 ? SEED_MELONPULT : SEED_CABBAGEPULT);
 				}
 				else if (aOldType == SEED_SNOWPEA)
 				{
-					int aRoll = Rand(3);
-					aNewType = aRoll == 0 ? SEED_FUMESHROOM : (aRoll == 1 ? SEED_MELONPULT : SEED_CABBAGEPULT);
+					// 西瓜投手少一点: 大喷菇 2/6, 西瓜 1/6, 卷心菜 3/6
+					int aRoll = Rand(6);
+					aNewType = aRoll < 2 ? SEED_FUMESHROOM : (aRoll == 2 ? SEED_MELONPULT : SEED_CABBAGEPULT);
 				}
 			}
 			else if (aOldType == SEED_REPEATER && Rand(100) < 30)
@@ -5387,7 +5389,7 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			if (aOldType == SEED_PEASHOOTER || aOldType == SEED_CACTUS)
 				aNewType = SEED_CABBAGEPULT;
 			else if (aOldType == SEED_SNOWPEA || aOldType == SEED_REPEATER)
-				aNewType = SEED_MELONPULT;
+				aNewType = Rand(100) < 50 ? SEED_MELONPULT : SEED_CABBAGEPULT;   // 西瓜投手少一点: 一半换卷心菜
 			else if (aOldType == SEED_GATLINGPEA)
 				aNewType = SEED_WINTERMELON;
 			else if (aOldType == SEED_THREEPEATER)
@@ -5405,8 +5407,8 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 		{
 			if (aOldType == SEED_UMBRELLA && Rand(100) < 50)
 				aNewType = SEED_HYPNOSHROOM;
-			else if (aOldType == SEED_KERNELPULT && Rand(100) < 50)
-				aNewType = SEED_MELONPULT;
+			else if (aOldType == SEED_KERNELPULT && Rand(100) < (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT ? 25 : 50))
+				aNewType = SEED_MELONPULT;   // 屋顶夜西瓜投手少一点: 25% 而不是 50%
 			else if (aOldType == SEED_WALLNUT && Rand(100) < 50)
 				aNewType = SEED_TALLNUT;
 		}
