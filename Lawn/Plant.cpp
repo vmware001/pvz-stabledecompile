@@ -197,9 +197,9 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         if (aBodyReanim->TrackExists("anim_idle"))
             aBodyReanim->SetFramesForLayer("anim_idle");
 
-        // IZE 黑夜屋顶: 花盆只当底座, 不要播 anim_idle 的上下浮动动画.
-        // 否则植物被吃掉之后空出来的花盆会一直上下浮动, 看起来像在飘.
-        if (theSeedType == SeedType::SEED_FLOWERPOT && mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
+        // 屋顶(原版冒险屋顶 + IZE 黑夜屋顶): 花盆只当底座, 不要播 anim_idle 的上下浮动动画.
+        // 花盆 idle 动画自带上下浮动, 植物被吃掉之后空出来的花盆会一直飘, 很怪.
+        if (theSeedType == SeedType::SEED_FLOWERPOT && mBoard != nullptr && mBoard->StageHasRoof())
             aBodyReanim->mAnimRate = 0.0f;
 
         if (!mApp->GetDialog(Dialogs::DIALOG_ALMANAC) && mApp->IsWallnutBowlingLevel() && aBodyReanim->TrackExists("_ground"))
