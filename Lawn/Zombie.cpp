@@ -4971,8 +4971,24 @@ void Zombie::UpdateZombieWalking()
                         float aLeaderStopX = 20.0f - DANCER_EXTRA_LEFT - aLeader->mZombieAttackRect.mX;
                         if (aLeader->mPosX <= aLeaderStopX)
                         {
-                            // 舞王已停: 伴舞原地跟停, 保持和舞王的相对间隔(前后各 100px 的队形)
-                            aNewPosX = mPosX;
+                            // 舞王已停在边缘等脑子: 已经在队形位置上的伴舞原地跟停,
+                            // 掉队的伴舞继续往前走, 直到回到默认队形间距再停
+                            // (以前是一律原地停, 掉队的伴舞永远走不到自己那行的脑子, 关卡会卡死).
+                            float aFollowerStopX = aLeaderStopX;
+                            ZombieID aMyZombieID = mBoard->ZombieGetID(this);
+                            for (int aDancerIdx = 0; aDancerIdx < NUM_BACKUP_DANCERS; aDancerIdx++)
+                            {
+                                if (aLeader->mFollowerZombieID[aDancerIdx] == aMyZombieID)
+                                {
+                                    if (aDancerIdx == 2)
+                                        aFollowerStopX -= 100.0f;   // 队伍最前面的伴舞
+                                    else if (aDancerIdx == 3)
+                                        aFollowerStopX += 100.0f;   // 队伍最后面的伴舞
+                                    break;
+                                }
+                            }
+                            if (aNewPosX < aFollowerStopX)
+                                aNewPosX = aFollowerStopX;
                         }
                     }
                 }
