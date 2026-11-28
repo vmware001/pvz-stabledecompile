@@ -3352,14 +3352,30 @@ static bool HttpFetch(const wchar_t* host, const wchar_t* path, const wchar_t* o
 // 崩溃时 SEHCatcher 会在游戏目录写 crash.txt 和 crash_pending.txt;
 // 下次启动时本线程把 crash_pending.txt POST 到崩溃收集服务(静态站点无法接收 POST, 默认本地 8765),
 // 成功后删除该文件; 失败静默, 下次启动再试, 绝不影响游戏启动.
-static const wchar_t* kDefaultCrashReportUrl = L"http://127.0.0.1:8765/crash";
+static const wchar_t* kDefaultCrashReportUrl = L"https://cf.a0x7fff.site/pvz/crash";
 
-static bool ParseHttpUrl(const wchar_t* theUrl, std::wstring* theHost, INTERNET_PORT* thePort, std::wstring* thePath)
+static bool ParseHttpUrl(const wchar_t* theUrl, std::wstring* theHost, INTERNET_PORT* thePort, std::wstring* thePath, bool* theSecure)
 {
-	if (theUrl == NULL || _wcsnicmp(theUrl, L"http://", 7) != 0)
+	if (theUrl == NULL)
 		return false;
 
-	const wchar_t* aHostStart = theUrl + 7;
+	// 支持 http:// 和 https:// (https 走 443 + WinHTTP 的 TLS, 供 CF Tunnel 上的公网地址使用)
+	bool aSecure = false;
+	const wchar_t* aHostStart = NULL;
+	if (_wcsnicmp(theUrl, L"https://", 8) == 0)
+	{
+		aSecure = true;
+		aHostStart = theUrl + 8;
+	}
+	else if (_wcsnicmp(theUrl, L"http://", 7) == 0)
+	{
+		aHostStart = theUrl + 7;
+	}
+	else
+	{
+		return false;
+	}
+	*theSecure = aSecure;
 	const wchar_t* aSlash = wcschr(aHostStart, L'/');
 	std::wstring aHostPort = aSlash != NULL ? std::wstring(aHostStart, aSlash) : std::wstring(aHostStart);
 	if (aHostPort.empty())
@@ -3374,7 +3390,7 @@ static bool ParseHttpUrl(const wchar_t* theUrl, std::wstring* theHost, INTERNET_
 	else
 	{
 		*theHost = aHostPort;
-		*thePort = 80;
+		*thePort = aSecure ? 443 : 80;
 	}
 	*thePath = aSlash != NULL ? std::wstring(aSlash) : std::wstring(L"/");
 	return !theHost->empty() && *thePort != 0;
@@ -3384,7 +3400,8 @@ static bool HttpPostText(const wchar_t* theUrl, const std::string& theBody)
 {
 	std::wstring aHost, aPath;
 	INTERNET_PORT aPort = 80;
-	if (!ParseHttpUrl(theUrl, &aHost, &aPort, &aPath))
+	bool aSecure = false;
+	if (!ParseHttpUrl(theUrl, &aHost, &aPort, &aPath, &aSecure))
 		return false;
 
 	bool anOk = false;
@@ -3396,7 +3413,8 @@ static bool HttpPostText(const wchar_t* theUrl, const std::string& theBody)
 	HINTERNET aConnect = WinHttpConnect(aSession, aHost.c_str(), aPort, 0);
 	HINTERNET aRequest = NULL;
 	if (aConnect != NULL)
-		aRequest = WinHttpOpenRequest(aConnect, L"POST", aPath.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+		aRequest = WinHttpOpenRequest(aConnect, L"POST", aPath.c_str(), NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+			aSecure ? WINHTTP_FLAG_SECURE : 0);
 
 	if (aRequest != NULL &&
 		WinHttpSendRequest(aRequest, L"Content-Type: text/plain; charset=utf-8\r\n", (DWORD)-1, (LPVOID)theBody.data(), (DWORD)theBody.size(), (DWORD)theBody.size(), 0) &&
