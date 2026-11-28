@@ -5964,10 +5964,9 @@ void Challenge::IZombieInitLevel()
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
 
-		// 所有 IZE 模式(无尽/满花/增强/困难/泳池黑夜/黑夜屋顶): 主题按"越久没出现越容易"加权,
-		// 并禁止连续三把同一主题(综合/控制除外). 特殊阵型的基础概率仍按各模式原规则(增强类 40%, 无尽/满花 1/5).
-		bool aUseThemeWeights = mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENDLESS ||
-			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
+		// 增强 / 困难 / 泳池黑夜 / 黑夜屋顶: 特殊阵型概率 40%, 且主题按"越久没出现越容易"加权、禁止连续三把同一主题;
+		// 原版 IZE 无尽和满花保持原版: 特殊阵型 1/5、主题均匀随机, 不做记录、不加权.
+		bool aUseThemeWeights = mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED ||
 			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
 			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT;
 
