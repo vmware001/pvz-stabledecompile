@@ -5646,10 +5646,10 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 			if (aSunPlant->mSeedType == SEED_SUNFLOWER && aSunPlant->mPlantCol >= 0)
 				aSunflowerCount++;
 		}
-		if (aSunflowerCount < 3)
+		if (aSunflowerCount < 4)
 		{
 			Plant* aConvertPlant = nullptr;
-			while (aSunflowerCount < 3 && mBoard->IteratePlants(aConvertPlant))
+			while (aSunflowerCount < 4 && mBoard->IteratePlants(aConvertPlant))
 			{
 				if (aConvertPlant->mSeedType == SEED_SUNFLOWER || aConvertPlant->mSeedType == SEED_PUMPKINSHELL ||
 					aConvertPlant->mSeedType == SEED_LILYPAD || aConvertPlant->mPlantCol < 0)
@@ -5663,7 +5663,7 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 	}
 
 	// 黑夜屋顶: 最后兜底一次(火炬无效替换等后续规则可能又改出射手), 保证左侧四列只剩投手/蘑菇,
-	// 整关不允许出现地刺/地刺王, 并且保证至少 3 朵向日葵("满花"标准).
+	// 整关不允许出现地刺/地刺王, 并且保证至少 4 朵向日葵(与池夜一致).
 	if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
 	{
 		Plant* aFixPlant = nullptr;
@@ -5706,7 +5706,7 @@ void Challenge::IZombieStrengthenPlants(bool theSpecialFormation, int theFormati
 				aRoofSunflowerCount++;
 		}
 		Plant* aRoofConvertPlant = nullptr;
-		while (aRoofSunflowerCount < 3 && mBoard->IteratePlants(aRoofConvertPlant))
+		while (aRoofSunflowerCount < 4 && mBoard->IteratePlants(aRoofConvertPlant))
 		{
 			if (aRoofConvertPlant->mSeedType == SEED_SUNFLOWER || aRoofConvertPlant->mSeedType == SEED_PUMPKINSHELL ||
 				aRoofConvertPlant->mSeedType == SEED_FLOWERPOT || aRoofConvertPlant->mSeedType == SEED_LILYPAD ||
@@ -5954,10 +5954,10 @@ void Challenge::IZombieInitLevel()
 		}
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_FULL_FLOWERS || mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED)
 			aPuffshroomCount = min(aPuffshroomCount, 5);
-		// 泳池黑夜 / 黑夜屋顶: 与满花一致, 小喷菇最多 5 棵, 保证向日葵至少 3 朵(8 - 5)
+		// 泳池黑夜 / 黑夜屋顶: 小喷菇最多 4 棵, 保证向日葵至少 4 朵(8 - 4)
 		if (mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT ||
 			mApp->mGameMode == GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
-			aPuffshroomCount = min(aPuffshroomCount, 5);
+			aPuffshroomCount = min(aPuffshroomCount, 4);
 		int aSunflowerCount = 8 - aPuffshroomCount;
 		IZombiePlacePlants(SEED_SUNFLOWER, aSunflowerCount, -1);
 		IZombiePlacePlants(SEED_PUFFSHROOM, aPuffshroomCount, -1);
