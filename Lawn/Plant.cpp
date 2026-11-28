@@ -2088,6 +2088,16 @@ void Plant::UpdateBlover()
 
 void Plant::UpdateFlowerPot()
 {
+    // 屋顶关卡(原版冒险屋顶 + IZE 黑夜屋顶): 花盆必须保持静止.
+    // 创建时已经 mAnimRate=0, 但后续逻辑(重新播 idle 等)可能把它恢复, 导致植物被吃掉后花盆上下浮动;
+    // 这里每帧强制清零, 保证花盆永远不播 anim_idle 的浮动.
+    if (mBoard != nullptr && mBoard->StageHasRoof())
+    {
+        Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+        if (aBodyReanim != nullptr)
+            aBodyReanim->mAnimRate = 0.0f;
+    }
+
     if (mState == PlantState::STATE_FLOWERPOT_INVULNERABLE && mStateCountdown == 0)
         mState = PlantState::STATE_NOTREADY;
 }
