@@ -76,7 +76,7 @@ ChallengeDefinition gChallengeDefs[NUM_CHALLENGE_MODES] = {
 	{ GameMode::GAMEMODE_SCARY_POTTER_9,                       10,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      4,  1,  _S("[SCARY_POTTER_9]") },
 	{ GameMode::GAMEMODE_SCARY_POTTER_ENDLESS,                 10,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      4,  2,  _S("[SCARY_POTTER_ENDLESS]") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_1,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      4,  3,  _S("[I_ZOMBIE_1]") },
-	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_2,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      1,  0,  _S("[I_ZOMBIE_2]") },
+	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_2,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      4,  4,  _S("[I_ZOMBIE_2]") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_3,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      1,  1,  _S("[I_ZOMBIE_3]") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_4,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      1,  2,  _S("[I_ZOMBIE_4]") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_5,                    11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      1,  3,  _S("[I_ZOMBIE_5]") },
@@ -107,7 +107,7 @@ ChallengeDefinition gChallengeDefs[NUM_CHALLENGE_MODES] = {
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_STRENGTHENED,          11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  3,  _S("IZE Hard") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ENHANCED,              11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  2,  _S("IZE Enhanced") },
 	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_POOL_NIGHT,            11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  4,  _S("IZE Pool Night") },
-	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT,            11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      0,  5,  _S("IZE Roof Night") },
+	{ GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT,            11,  ChallengePage::CHALLENGE_PAGE_PUZZLE,      1,  0,  _S("IZE Roof Night") },
 #ifdef _MOBILE_MINIGAMES
 	{ GameMode::GAMEMODE_CHALLENGE_VASEBREAKER,				   10,  ChallengePage::CHALLENGE_PAGE_LIMBO_CHALLENGE,       3,  2,  _S("[VASE_BREAKER]") },
 	{ GameMode::GAMEMODE_CHALLENGE_BUTTERED_POPCORN,		   10,  ChallengePage::CHALLENGE_PAGE_LIMBO_CHALLENGE,       3,  3,  _S("[BUTTERED_POPCORN]") },

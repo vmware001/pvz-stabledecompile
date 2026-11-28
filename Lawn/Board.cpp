@@ -2200,6 +2200,10 @@ void Board::UpdateLevelEndSequence()
 			// IZE(含满花/增强/困难/池夜/屋顶夜)也按"每轮结束存一次"处理:
 			// 之前只有生存/Last Stand 无尽会在这里存, IZE 中途退出或崩溃就只剩上一次手动退出时的存档, 看起来像"进度没保留".
 			TryToSaveGame();
+			// TryToSaveGame 内部为了存档会 GameMusicPause(true) 停掉 BGM, 关卡中途自动存档后必须恢复,
+			// 否则过完过场/音效进入下一关时背景音乐就永远消失了.
+			if (mApp->mGameScene == GameScenes::SCENE_PLAYING)
+				mApp->mMusic->GameMusicPause(false);
 		}
 
 		if (!mNextSurvivalStageCounter)
