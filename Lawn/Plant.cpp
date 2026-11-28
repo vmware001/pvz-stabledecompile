@@ -197,9 +197,10 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         if (aBodyReanim->TrackExists("anim_idle"))
             aBodyReanim->SetFramesForLayer("anim_idle");
 
-        // 屋顶(原版冒险屋顶 + IZE 黑夜屋顶): 花盆只当底座, 不要播 anim_idle 的上下浮动动画.
-        // 花盆 idle 动画自带上下浮动, 植物被吃掉之后空出来的花盆会一直飘, 很怪.
-        if (theSeedType == SeedType::SEED_FLOWERPOT && mBoard != nullptr && mBoard->StageHasRoof())
+        // IZE 模式(目前只有黑夜屋顶会摆花盆): 花盆只当底座, 不要播 anim_idle 的上下浮动动画,
+        // 否则花盆上的植物被吃掉后, 空出来的花盆会一直上下浮动.
+        // 注意: 原版冒险屋顶的花盆要保持原版的浮动效果, 不要动.
+        if (theSeedType == SeedType::SEED_FLOWERPOT && mApp != nullptr && mApp->mGameMode == GameMode::GAMEMODE_PUZZLE_I_ZOMBIE_ROOF_NIGHT)
             aBodyReanim->mAnimRate = 0.0f;
 
         if (!mApp->GetDialog(Dialogs::DIALOG_ALMANAC) && mApp->IsWallnutBowlingLevel() && aBodyReanim->TrackExists("_ground"))
@@ -2088,10 +2089,10 @@ void Plant::UpdateBlover()
 
 void Plant::UpdateFlowerPot()
 {
-    // 屋顶关卡(原版冒险屋顶 + IZE 黑夜屋顶): 花盆必须保持静止.
+    // IZE 关卡: 花盆必须保持静止(原版冒险屋顶保持原版浮动, 不要动).
     // 创建时已经 mAnimRate=0, 但后续逻辑(重新播 idle 等)可能把它恢复, 导致植物被吃掉后花盆上下浮动;
-    // 这里每帧强制清零, 保证花盆永远不播 anim_idle 的浮动.
-    if (mBoard != nullptr && mBoard->StageHasRoof())
+    // 这里每帧强制清零, 保证 IZE 里的花盆永远不播 anim_idle 的浮动.
+    if (mApp != nullptr && mApp->IsIZombieLevel())
     {
         Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
         if (aBodyReanim != nullptr)
